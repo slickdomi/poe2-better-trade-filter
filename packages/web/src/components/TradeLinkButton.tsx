@@ -2,7 +2,9 @@ import { useState } from "react";
 import type { DerivedState } from "../state/derive";
 import { STATUS_OPTIONS, type BuyoutPriceValue, type StatusOption } from "../state/types";
 import { buildTradeUrl } from "../lib/tradeUrl";
+import { setDefaultBuyoutPrice, setDefaultStatus } from "../lib/defaultTradeOptions";
 import { BuyoutPriceField } from "./BuyoutPriceField";
+import { SaveDefaultButton } from "./SaveDefaultButton";
 
 interface Props {
   league: string;
@@ -40,7 +42,11 @@ export function TradeLinkButton({
 
   return (
     <section>
-      <BuyoutPriceField value={buyoutPrice} onChange={onBuyoutPriceChange} />
+      <BuyoutPriceField
+        value={buyoutPrice}
+        onChange={onBuyoutPriceChange}
+        onSaveDefault={() => setDefaultBuyoutPrice(buyoutPrice)}
+      />
       <div className="status-select">
         <span>Show sellers</span>
         <select value={status} onChange={(e) => onStatusChange(e.target.value as StatusOption)}>
@@ -50,6 +56,7 @@ export function TradeLinkButton({
             </option>
           ))}
         </select>
+        <SaveDefaultButton title="Save as default seller filter" onSave={() => setDefaultStatus(status)} />
       </div>
       <button type="button" className="trade-link-button" onClick={handleClick} disabled={disabled}>
         Open in official PoE2 trade site

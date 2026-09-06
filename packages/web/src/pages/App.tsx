@@ -12,6 +12,7 @@ import { SearchableCombobox } from "../components/SearchableCombobox";
 import { SavedQueriesPanel } from "../components/SavedQueriesPanel";
 import { listSavedQueries } from "../lib/savedQueries";
 import { pushQueryToHistory, readSharedQuery } from "../lib/shareUrl";
+import { getDefaultBuyoutPrice, getDefaultStatus } from "../lib/defaultTradeOptions";
 
 const data = filtersJson as FiltersData;
 const DEFAULT_LEAGUE = data.leagues[0]?.id ?? "Standard";
@@ -60,11 +61,16 @@ export function App() {
         } else {
           // Nothing (valid) in the URL — either the very first load, or the
           // user went back past the first edit — either way, blank slate.
+          // Seller/buyout price fall back to the user's own saved defaults
+          // (see lib/defaultTradeOptions.ts) rather than the hardcoded app
+          // defaults, if they've saved one — the debounced push effect below
+          // then encodes whichever applies into the URL on its own once this
+          // settles, same as any other state change.
           pipeline.reset();
           pipeline.setIncludeUniqueMods(false);
           setLeague(DEFAULT_LEAGUE);
-          setStatus("securable");
-          setBuyoutPrice({ currency: "" });
+          setStatus(getDefaultStatus() ?? "securable");
+          setBuyoutPrice(getDefaultBuyoutPrice() ?? { currency: "" });
         }
       });
     }

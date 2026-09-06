@@ -1,9 +1,11 @@
 import { PRICE_CURRENCY_OPTIONS, type BuyoutPriceValue } from "../state/types";
 import { SearchableCombobox } from "./SearchableCombobox";
+import { SaveDefaultButton } from "./SaveDefaultButton";
 
 interface Props {
   value: BuyoutPriceValue;
   onChange: (value: BuyoutPriceValue) => void;
+  onSaveDefault: () => void;
 }
 
 // 0 is the same as "no bound" here (a minimum or maximum of 0 constrains
@@ -12,7 +14,7 @@ function normalize(v: number | undefined): number | undefined {
   return v === undefined || v === 0 ? undefined : v;
 }
 
-export function BuyoutPriceField({ value, onChange }: Props) {
+export function BuyoutPriceField({ value, onChange, onSaveDefault }: Props) {
   const currencyText = PRICE_CURRENCY_OPTIONS.find((o) => o.id === value.currency)?.text ?? "Exalted Orb Equivalent";
 
   return (
@@ -35,6 +37,7 @@ export function BuyoutPriceField({ value, onChange }: Props) {
         value={value.max ?? ""}
         onChange={(e) => onChange({ ...value, max: normalize(e.target.value === "" ? undefined : Number(e.target.value)) })}
       />
+      <SaveDefaultButton title="Save as default buyout price" onSave={onSaveDefault} />
     </div>
   );
 }

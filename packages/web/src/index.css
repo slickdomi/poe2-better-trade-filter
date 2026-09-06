@@ -67,6 +67,18 @@ main {
   width: 4rem;
 }
 
+.save-default-button {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
