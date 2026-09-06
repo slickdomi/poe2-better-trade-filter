@@ -1,4 +1,6 @@
 import type { QuerySnapshot } from "../state/types";
+import { isQuerySnapshotShape, migrateQuerySnapshotFields, withCurrentSnapshotVersion } from "./schemaVersion";
+import { readVersionedStore, writeVersionedStore, type VersionedStoreSpec } from "./versionedStore";
 
 export interface SavedQuery extends QuerySnapshot {
   id: string;
@@ -16,65 +18,61 @@ export interface SavedQueryFolder {
   createdAt: string;
 }
 
-const STORAGE_KEY = "poe2-better-trade:saved-queries";
-const FOLDERS_KEY = "poe2-better-trade:saved-query-folders";
+function isSavedQueryFolder(v: unknown): v is SavedQueryFolder {
+  return !!v && typeof v === "object" && typeof (v as SavedQueryFolder).id === "string" && typeof (v as SavedQueryFolder).name === "string";
+}
+
+/** A SavedQuery is a QuerySnapshot (see schemaVersion.ts for how that part migrates) plus id/name/steps — checked here since a structural QuerySnapshot check alone doesn't require those. */
+function isSavedQuery(v: unknown): v is SavedQuery {
+  if (!isQuerySnapshotShape(v)) return false;
+  const q = v as SavedQuery;
+  return typeof q.id === "string" && typeof q.name === "string";
+}
+
+/** Migrates the QuerySnapshot-shaped fields, then defaults `folderId` — the one SavedQuery-only field that predates folders — for anything still missing it. */
+function migrateSavedQueryRecord(raw: unknown): unknown {
+  const migrated = migrateQuerySnapshotFields(raw);
+  if (!migrated || typeof migrated !== "object") return migrated;
+  return { folderId: null, ...migrated };
+}
+
+// See lib/versionedStore.ts for the migration convention these specs follow.
+const QUERIES_STORE: VersionedStoreSpec<SavedQuery[]> = {
+  key: "poe2-better-trade:saved-queries",
+  currentVersion: 1,
+  migrations: [],
+  sanitize(payload) {
+    if (!Array.isArray(payload)) return [];
+    return payload.map(migrateSavedQueryRecord).filter(isSavedQuery);
+  },
+};
+
+const FOLDERS_STORE: VersionedStoreSpec<SavedQueryFolder[]> = {
+  key: "poe2-better-trade:saved-query-folders",
+  currentVersion: 1,
+  migrations: [],
+  sanitize(payload) {
+    if (!Array.isArray(payload)) return [];
+    return payload
+      .map((f): unknown => ({ parentId: null, ...(f as Record<string, unknown>) }))
+      .filter(isSavedQueryFolder);
+  },
+};
 
 function readAll(): SavedQuery[] {
-  let raw: string | null;
-  try {
-    raw = localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return [];
-  }
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    // Queries saved before these filters existed default to "securable" (instant buyout),
-    // no buyout price constraint, unique-only modifiers hidden, and no folder.
-    return parsed.map((q) => ({
-      status: "securable",
-      buyoutPrice: { currency: "" },
-      includeUniqueMods: false,
-      folderId: null,
-      ...q,
-    }));
-  } catch {
-    return [];
-  }
+  return readVersionedStore(QUERIES_STORE);
 }
 
 function writeAll(queries: SavedQuery[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(queries));
-  } catch {
-    // localStorage unavailable (private mode, quota, etc.) — saves are best-effort.
-  }
+  writeVersionedStore(QUERIES_STORE, queries);
 }
 
 function readAllFolders(): SavedQueryFolder[] {
-  let raw: string | null;
-  try {
-    raw = localStorage.getItem(FOLDERS_KEY);
-  } catch {
-    return [];
-  }
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((f) => ({ parentId: null, ...f }));
-  } catch {
-    return [];
-  }
+  return readVersionedStore(FOLDERS_STORE);
 }
 
 function writeAllFolders(folders: SavedQueryFolder[]) {
-  try {
-    localStorage.setItem(FOLDERS_KEY, JSON.stringify(folders));
-  } catch {
-    // localStorage unavailable (private mode, quota, etc.) — saves are best-effort.
-  }
+  writeVersionedStore(FOLDERS_STORE, folders);
 }
 
 /** Sorted newest-first so the most recently saved query is always on top. */
@@ -87,7 +85,7 @@ export function listFolders(): SavedQueryFolder[] {
 }
 
 export function saveQuery(input: QuerySnapshot & { name: string; folderId?: string | null }): SavedQuery {
-  const query: SavedQuery = {
+  const query: SavedQuery = withCurrentSnapshotVersion({
     id: crypto.randomUUID(),
     name: input.name,
     savedAt: new Date().toISOString(),
@@ -98,7 +96,7 @@ export function saveQuery(input: QuerySnapshot & { name: string; folderId?: stri
     enforceAffixCap: input.enforceAffixCap,
     includeUniqueMods: input.includeUniqueMods,
     steps: input.steps,
-  };
+  });
   writeAll([...readAll(), query]);
   return query;
 }
@@ -155,8 +153,18 @@ export function deleteFolder(id: string) {
   writeAll(readAll().map((q) => (q.folderId === id ? { ...q, folderId: folder.parentId } : q)));
 }
 
+/**
+ * The export file's own version — independent of QUERIES_STORE/FOLDERS_STORE's
+ * container versions, since it bundles both into one file. Bump it (and add
+ * a branch in importSavedQueriesFromJson) only if the *wrapper* shape itself
+ * changes; a shape change to a folder or query record is instead handled by
+ * the exact same migrateSavedQueryRecord/isSavedQuery pipeline reads already
+ * go through, so most schema changes need no update here at all.
+ */
+const SAVED_QUERIES_EXPORT_VERSION = 1;
+
 interface SavedQueriesExport {
-  version: 1;
+  version: number;
   exportedAt: string;
   folders: SavedQueryFolder[];
   queries: SavedQuery[];
@@ -164,7 +172,7 @@ interface SavedQueriesExport {
 
 export function exportSavedQueriesToJson(): string {
   const data: SavedQueriesExport = {
-    version: 1,
+    version: SAVED_QUERIES_EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     folders: readAllFolders(),
     queries: readAll(),
@@ -172,30 +180,28 @@ export function exportSavedQueriesToJson(): string {
   return JSON.stringify(data, null, 2);
 }
 
-function isSavedQueryFolder(v: unknown): v is SavedQueryFolder {
-  return !!v && typeof v === "object" && typeof (v as SavedQueryFolder).id === "string" && typeof (v as SavedQueryFolder).name === "string";
-}
-
-function isSavedQuery(v: unknown): v is SavedQuery {
-  if (!v || typeof v !== "object") return false;
-  const q = v as SavedQuery;
-  return typeof q.id === "string" && typeof q.name === "string" && typeof q.league === "string" && Array.isArray(q.steps);
-}
-
 /**
- * Imports queries/folders from a previously exported file. Always additive —
- * never overwrites or removes anything already saved locally — so every
- * imported folder and query gets a freshly generated id, with internal
- * folderId/parentId references remapped to match. That also means importing
- * the same file twice (or a file exported from another browser) just adds a
- * second copy rather than colliding with existing ids.
+ * Imports queries/folders from a previously exported file. Runs every
+ * record through the same migration + validation pipeline a normal
+ * localStorage read does (so a file exported by an older app version
+ * upgrades exactly the same way old localStorage data would), then always
+ * imports additively — never overwrites or removes anything already saved
+ * locally — so every imported folder and query gets a freshly generated id,
+ * with internal folderId/parentId references remapped to match. That also
+ * means importing the same file twice (or a file exported from another
+ * browser) just adds a second copy rather than colliding with existing ids.
  */
 export function importSavedQueriesFromJson(json: string): { foldersImported: number; queriesImported: number } {
   const parsed: unknown = JSON.parse(json);
   if (!parsed || typeof parsed !== "object") throw new Error("Not a valid saved-queries export file.");
   const data = parsed as Partial<SavedQueriesExport>;
-  const foldersIn = Array.isArray(data.folders) ? data.folders.filter(isSavedQueryFolder) : [];
-  const queriesIn = Array.isArray(data.queries) ? data.queries.filter(isSavedQuery) : [];
+  if (typeof data.version === "number" && data.version > SAVED_QUERIES_EXPORT_VERSION) {
+    throw new Error("This file was exported by a newer version of the app — update the app before importing it.");
+  }
+  const foldersIn = Array.isArray(data.folders)
+    ? data.folders.map((f): unknown => ({ parentId: null, ...(f as unknown as Record<string, unknown>) })).filter(isSavedQueryFolder)
+    : [];
+  const queriesIn = Array.isArray(data.queries) ? data.queries.map(migrateSavedQueryRecord).filter(isSavedQuery) : [];
   if (foldersIn.length === 0 && queriesIn.length === 0) {
     throw new Error("No saved queries or folders found in this file.");
   }

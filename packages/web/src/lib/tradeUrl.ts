@@ -74,11 +74,23 @@ export function buildTradeQueryPayload(
     typeFilters.filters.category = { option: derived.chosenCategory.id };
   }
 
-  // Currency alone doesn't constrain anything — only include the filter once a bound is set.
-  if (buyoutPrice && (buyoutPrice.min !== undefined || buyoutPrice.max !== undefined)) {
+  // A specific chosen currency (e.g. "Exalted or Divine Orbs") IS a real,
+  // sendable filter on its own — confirmed against a real trade-site link
+  // with a currency chosen and no amount, which encodes as bare
+  // `{"option":"exalted_divine"}`, no min/max at all. Only the *default*
+  // currency ("" — our combobox's own id for "Exalted Orb Equivalent",
+  // trade-filters.json's `option.options[0].id: null` in the filter
+  // *definition*) is truly a no-op with no amount attached, so the filter
+  // is built whenever there's a real currency OR a bound, and the default
+  // currency's `option` key is left out entirely rather than sent as
+  // literal `null` — every other optional `option`-style filter this app
+  // builds already follows that "omit rather than send null/empty" rule
+  // (see MiscFilterPanel's OptionField, which calls onRemove instead of
+  // ever storing an empty option).
+  if (buyoutPrice && (buyoutPrice.currency || buyoutPrice.min !== undefined || buyoutPrice.max !== undefined)) {
     const tradeFilters = (filters.trade_filters ??= { filters: {} });
     tradeFilters.filters.price = {
-      option: buyoutPrice.currency || null,
+      ...(buyoutPrice.currency ? { option: buyoutPrice.currency } : {}),
       ...(buyoutPrice.min !== undefined ? { min: buyoutPrice.min } : {}),
       ...(buyoutPrice.max !== undefined ? { max: buyoutPrice.max } : {}),
     };

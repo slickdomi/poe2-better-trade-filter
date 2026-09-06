@@ -5,3 +5,6 @@ packages/data-pipeline/raw-cache/
 .DS_Store
 *.log
 *.tsbuildinfo
+packages/web/test-results/
+packages/web/playwright-report/
+packages/web/blob-report/

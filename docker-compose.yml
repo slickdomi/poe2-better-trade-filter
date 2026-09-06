@@ -21,7 +21,27 @@ services:
       - pipeline_pkg_node_modules:/app/packages/data-pipeline/node_modules
     command: sh -c "npm install && npm run fetch --workspace packages/data-pipeline"
 
+  # Playwright e2e suite. The `web` service must already be running first
+  # (`docker compose up -d web`) — this drives it as a real browser over
+  # localhost, it doesn't start its own dev server. network_mode: host is
+  # required, same reason as every ad-hoc Playwright run this project has
+  # used so far: Vite's dev server rejects requests whose Host header it
+  # doesn't recognize, which a container-to-container compose network name
+  # would trigger.
+  e2e:
+    build: .
+    working_dir: /app
+    network_mode: host
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+      - web_pkg_node_modules:/app/packages/web/node_modules
+      - pipeline_pkg_node_modules:/app/packages/data-pipeline/node_modules
+      - playwright_browsers:/root/.cache/ms-playwright
+    command: sh -c "npm install && npx playwright install --with-deps chromium && npm run test:e2e --workspace packages/web"
+
 volumes:
   web_node_modules:
   web_pkg_node_modules:
   pipeline_pkg_node_modules:
+  playwright_browsers:
