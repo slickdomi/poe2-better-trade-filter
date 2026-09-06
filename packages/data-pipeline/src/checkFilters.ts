@@ -5,8 +5,15 @@ import type { FiltersOutput } from "./types.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FILTERS_PATH = path.resolve(HERE, "../../web/src/data/filters.json");
+const TRADE_ITEMS_PATH = path.resolve(HERE, "../raw-cache/trade-items.json");
 
-type Check = (data: FiltersOutput) => string[] | void;
+interface CheckContext {
+  data: FiltersOutput;
+  /** Every base-type name the live trade site's own item catalog lists — see the item-names check below. */
+  validItemNames: Set<string>;
+}
+
+type Check = (ctx: CheckContext) => string[] | void;
 
 /**
  * Assertion checks against the generated filters.json — not a unit-test
@@ -18,7 +25,7 @@ type Check = (data: FiltersOutput) => string[] | void;
  * empty/undefined return means it passed.
  */
 const checks: Record<string, Check> = {
-  "every eligibility/uniqueEligibility/eligibilityByItemName id resolves to a real stat"(data) {
+  "every eligibility/uniqueEligibility/eligibilityByItemName id resolves to a real stat"({ data }) {
     const statIds = new Set(data.stats.map((s) => s.id));
     const failures: string[] = [];
     for (const [source, byKey] of [
@@ -35,7 +42,7 @@ const checks: Record<string, Check> = {
     return failures;
   },
 
-  "uniqueEligibility never overlaps eligibility for the same category"(data) {
+  "uniqueEligibility never overlaps eligibility for the same category"({ data }) {
     const failures: string[] = [];
     for (const [categoryId, uniqueIds] of Object.entries(data.uniqueEligibility)) {
       const normalIds = new Set(data.eligibility[categoryId] ?? []);
@@ -48,7 +55,7 @@ const checks: Record<string, Check> = {
     return failures;
   },
 
-  "every category has at least one eligible modifier (normal or unique)"(data) {
+  "every category has at least one eligible modifier (normal or unique)"({ data }) {
     const failures: string[] = [];
     for (const cat of data.categories) {
       const count = (data.eligibility[cat.id]?.length ?? 0) + (data.uniqueEligibility[cat.id]?.length ?? 0);
@@ -57,7 +64,7 @@ const checks: Record<string, Check> = {
     return failures;
   },
 
-  "category and stat counts haven't collapsed"(data) {
+  "category and stat counts haven't collapsed"({ data }) {
     const failures: string[] = [];
     if (data.categories.length < 30) failures.push(`only ${data.categories.length} categories (expected >= 30)`);
     if (data.stats.length < 900) failures.push(`only ${data.stats.length} stats (expected >= 900)`);
@@ -71,7 +78,7 @@ const checks: Record<string, Check> = {
   // uniques ("Mjölner"/"Chober Chaber") that also roll it — confirmed live
   // against the official trade site before this fix. If this regresses, the
   // poe2db unique-item scrape/merge is broken again.
-  "unique-only Intelligence Requirement covers the confirmed weapon + armour bases"(data) {
+  "unique-only Intelligence Requirement covers the confirmed weapon + armour bases"({ data }) {
     const stat = data.stats.find((s) => s.text === "# Intelligence Requirement");
     if (!stat) return [`could not find the "# Intelligence Requirement" stat at all`];
     const expectedCategories = ["weapon.onemace", "weapon.twomace", "armour.helmet"];
@@ -83,22 +90,43 @@ const checks: Record<string, Check> = {
   // Regression guard for the (separate, earlier) poe2db Genesis Tree /
   // Otherworldly integration — confirms the scrape->merge pipeline for that
   // feature is still wired up, using one specific stat spot-checked by hand.
-  "poe2db Genesis Tree mods still reach Ring eligibility"(data) {
+  "poe2db Genesis Tree mods still reach Ring eligibility"({ data }) {
     const stat = data.stats.find((s) => s.text === "# to maximum number of Elemental Infusions");
     if (!stat) return [`could not find the "# to maximum number of Elemental Infusions" stat at all`];
     if (!data.eligibility["accessory.ring"]?.includes(stat.id)) {
       return [`"${stat.id}" missing from eligibility["accessory.ring"]`];
     }
   },
+
+  // Regression guard for the fix that filters itemNamesByCategory against the
+  // live trade catalog: RePoE marks 200+ base items "released" (dev-only
+  // "[DNT]" placeholders, retired bases, etc.) that were never actually
+  // obtainable in PoE2 — "Anima Quarterstaff" was the one spotted live in the
+  // item-name picker. If this regresses, buildItemNamesByCategory stopped
+  // filtering against trade-items.json again.
+  "itemNamesByCategory only lists base types the live trade catalog actually has"({ data, validItemNames }) {
+    const failures: string[] = [];
+    for (const [categoryId, names] of Object.entries(data.itemNamesByCategory)) {
+      for (const name of names) {
+        if (!validItemNames.has(name)) failures.push(`itemNamesByCategory["${categoryId}"] has stray base "${name}"`);
+      }
+    }
+    return failures;
+  },
 };
 
 async function main() {
   const raw = await readFile(FILTERS_PATH, "utf8");
   const data = JSON.parse(raw) as FiltersOutput;
+  const tradeItems = JSON.parse(await readFile(TRADE_ITEMS_PATH, "utf8")) as {
+    result: { entries: { type?: string }[] }[];
+  };
+  const validItemNames = new Set(tradeItems.result.flatMap((g) => g.entries.flatMap((e) => (e.type ? [e.type] : []))));
+  const ctx: CheckContext = { data, validItemNames };
 
   let failedCount = 0;
   for (const [name, check] of Object.entries(checks)) {
-    const failures = check(data) ?? [];
+    const failures = check(ctx) ?? [];
     if (failures.length === 0) {
       console.log(`  ok  ${name}`);
     } else {

@@ -648,6 +648,12 @@ section > h3:first-of-type {
   margin: 0;
 }
 
+.pipeline-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex: none;
+}
+
 .pipeline-trail ol li button {
   background: var(--bg-chip);
   border: 1px solid var(--border);
@@ -759,12 +765,6 @@ button:disabled {
   margin-top: 1rem;
 }
 
-.misc-section h3 {
-  font-size: 0.95rem;
-  margin: 0 0 0.5rem;
-  color: var(--text-dim);
-}
-
 .misc-section summary {
   cursor: pointer;
   font-family: var(--font-heading);
@@ -840,27 +840,135 @@ input[type="checkbox"] {
   flex: 1;
 }
 
-.saved-queries-list {
-  list-style: none;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   padding: 0;
-  margin: 0.75rem 0 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.saved-queries-list li {
+.saved-queries-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0;
+}
+
+.saved-queries-outdent {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.5rem 0;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.saved-queries-tree,
+.saved-queries-tree ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.saved-queries-tree {
+  margin-top: 0.75rem;
+  border-radius: var(--radius-sm);
+}
+
+.saved-queries-tree li {
   border-bottom: 1px solid var(--border);
 }
 
-.saved-queries-list li:last-child {
+.saved-queries-tree li:last-child {
   border-bottom: none;
+}
+
+.saved-query-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.saved-query-dragging {
+  opacity: 0.4;
+}
+
+.saved-folder-drag-over {
+  background: rgba(175, 138, 78, 0.18);
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+/* .saved-queries-root also uses .saved-folder-drag-over directly (there's no
+   "header" for the top level) — the radius there is harmless since its own
+   corners are already square. */
+.saved-folder-header.saved-folder-drag-over {
+  border-radius: var(--radius-md);
+}
+
+.saved-folder-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.2rem;
+}
+
+.folder-toggle {
+  padding: 0.1rem 0.3rem;
+  font-size: 0.7rem;
+  background: none;
+  border: none;
+}
+
+.folder-icon {
+  flex: none;
+}
+
+.saved-folder-name {
+  flex: 1;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.saved-folder-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.saved-folder-header:hover .saved-folder-actions,
+.saved-folder-header:focus-within .saved-folder-actions {
+  opacity: 1;
+}
+
+.saved-folder-actions button {
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+}
+
+.saved-folder-empty {
+  padding: 0.4rem 0 0.4rem 1.5rem;
 }
 
 .saved-query-info {
   display: flex;
+  flex: 1;
   flex-direction: column;
   min-width: 0;
 }

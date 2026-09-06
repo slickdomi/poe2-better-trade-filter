@@ -1,5 +1,7 @@
+import { useState, type ReactNode } from "react";
 import type { FilterDef, MiscFilterGroup, MiscFilterValue } from "../state/types";
 import type { DerivedMiscFilter } from "../state/derive";
+import { getSectionOpen, setSectionOpen, type SectionId } from "../lib/collapsedSections";
 import { SearchableCombobox } from "./SearchableCombobox";
 
 interface FieldProps {
@@ -89,6 +91,42 @@ function renderField(
   return <Field key={def.id} def={def} group={group} value={value} onAdd={onAdd} onUpdate={onUpdate} onRemove={onRemove} />;
 }
 
+/**
+ * A `<details>` section whose open/closed state is remembered across
+ * reloads (see lib/collapsedSections.ts) — `open` has to be a controlled
+ * prop for that (native `<details>` otherwise just manages it internally),
+ * so `onToggle` mirrors the DOM's own open state back into both React state
+ * and localStorage whenever the user clicks the summary.
+ */
+function CollapsibleSection({
+  id,
+  title,
+  defaultOpen,
+  children,
+}: {
+  id: SectionId;
+  title: string;
+  defaultOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(() => getSectionOpen(id, defaultOpen));
+
+  return (
+    <details
+      className="misc-section"
+      open={open}
+      onToggle={(e) => {
+        const next = e.currentTarget.open;
+        setOpen(next);
+        setSectionOpen(id, next);
+      }}
+    >
+      <summary>{title}</summary>
+      <div className="misc-grid">{children}</div>
+    </details>
+  );
+}
+
 interface Props {
   itemFilters: FilterDef[];
   relevantReqFilters: FilterDef[];
@@ -115,37 +153,25 @@ export function MiscFilterPanel({
       <h2>Item, requirements &amp; equipment</h2>
       <p className="hint">Only properties this selection can actually have are listed.</p>
 
-      <div className="misc-section">
-        <h3>Item</h3>
-        <div className="misc-grid">
-          {itemFilters.map((def) => renderField(def, "itemFilters", chosenMisc, onAdd, onUpdate, onRemove))}
-        </div>
-      </div>
+      <CollapsibleSection id="item" title="Item" defaultOpen>
+        {itemFilters.map((def) => renderField(def, "itemFilters", chosenMisc, onAdd, onUpdate, onRemove))}
+      </CollapsibleSection>
 
-      <div className="misc-section">
-        <h3>Requirements</h3>
-        <div className="misc-grid">
-          {relevantReqFilters.map((def) => renderField(def, "reqFilters", chosenMisc, onAdd, onUpdate, onRemove))}
-        </div>
-      </div>
+      <CollapsibleSection id="requirements" title="Requirements" defaultOpen={false}>
+        {relevantReqFilters.map((def) => renderField(def, "reqFilters", chosenMisc, onAdd, onUpdate, onRemove))}
+      </CollapsibleSection>
 
       {relevantEquipmentFilters.length > 0 && (
-        <div className="misc-section">
-          <h3>Equipment</h3>
-          <div className="misc-grid">
-            {relevantEquipmentFilters.map((def) =>
-              renderField(def, "equipmentFilters", chosenMisc, onAdd, onUpdate, onRemove),
-            )}
-          </div>
-        </div>
+        <CollapsibleSection id="equipment" title="Equipment" defaultOpen={false}>
+          {relevantEquipmentFilters.map((def) =>
+            renderField(def, "equipmentFilters", chosenMisc, onAdd, onUpdate, onRemove),
+          )}
+        </CollapsibleSection>
       )}
 
-      <details className="misc-section">
-        <summary>More (identified, corrupted, mirrored, …)</summary>
-        <div className="misc-grid">
-          {relevantMiscFilters.map((def) => renderField(def, "miscFilters", chosenMisc, onAdd, onUpdate, onRemove))}
-        </div>
-      </details>
+      <CollapsibleSection id="more" title="More (identified, corrupted, mirrored, …)" defaultOpen={false}>
+        {relevantMiscFilters.map((def) => renderField(def, "miscFilters", chosenMisc, onAdd, onUpdate, onRemove))}
+      </CollapsibleSection>
     </section>
   );
 }

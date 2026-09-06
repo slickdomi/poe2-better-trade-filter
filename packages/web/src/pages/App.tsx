@@ -10,7 +10,6 @@ import { PipelineTrail } from "../components/PipelineTrail";
 import { TradeLinkButton } from "../components/TradeLinkButton";
 import { SearchableCombobox } from "../components/SearchableCombobox";
 import { SavedQueriesPanel } from "../components/SavedQueriesPanel";
-import { listSavedQueries } from "../lib/savedQueries";
 import { pushQueryToHistory, readSharedQuery } from "../lib/shareUrl";
 import { getDefaultBuyoutPrice, getDefaultStatus } from "../lib/defaultTradeOptions";
 
@@ -22,12 +21,7 @@ export function App() {
   const [league, setLeague] = useState(DEFAULT_LEAGUE);
   const [status, setStatus] = useState<StatusOption>("securable");
   const [buyoutPrice, setBuyoutPrice] = useState<BuyoutPriceValue>({ currency: "" });
-  const [savedQueries, setSavedQueries] = useState(listSavedQueries);
   const { derived } = pipeline;
-
-  function refreshSavedQueries() {
-    setSavedQueries(listSavedQueries());
-  }
 
   function handleLoadQuery(query: QuerySnapshot) {
     pipeline.loadSteps(query.steps, {
@@ -166,8 +160,6 @@ export function App() {
           />
 
           <SavedQueriesPanel
-            queries={savedQueries}
-            onQueriesChange={refreshSavedQueries}
             canSave={pipeline.steps.length > 0}
             league={league}
             status={status}

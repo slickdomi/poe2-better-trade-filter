@@ -171,10 +171,11 @@ function buildTierGroups(modsForStat: Map<string, RepoeMod>, modIdsByCategory: M
 }
 
 async function main() {
-  const [tradeStats, tradeFilters, tradeLeagues, baseItems, mods, modsByBase] = await Promise.all([
+  const [tradeStats, tradeFilters, tradeLeagues, tradeItems, baseItems, mods, modsByBase] = await Promise.all([
     loadJson<{ result: TradeStatGroup[] }>("trade-stats"),
     loadJson<{ result: RawFilterGroup[] }>("trade-filters"),
     loadJson<{ result: { id: string; text: string }[] }>("trade-leagues"),
+    loadJson<{ result: { id: string; label: string; entries: { type?: string }[] }[] }>("trade-items"),
     loadJson<RepoeBaseItemsFile>("repoe-base-items"),
     loadJson<RepoeModsFile>("repoe-mods"),
     loadJson<RepoeModsByBaseFile>("repoe-mods-by-base"),
@@ -498,7 +499,8 @@ async function main() {
     if (extra.length > 0) eligibilityByItemName[name] = [...ids, ...extra].sort();
   }
 
-  const itemNamesByCategory = buildItemNamesByCategory(CATEGORY_ITEM_CLASSES, baseItems);
+  const validItemNames = new Set(tradeItems.result.flatMap((g) => g.entries.flatMap((e) => (e.type ? [e.type] : []))));
+  const itemNamesByCategory = buildItemNamesByCategory(CATEGORY_ITEM_CLASSES, baseItems, validItemNames);
   const itemFilters = buildPassthroughFilters(tradeFilters.result, "type_filters", ["rarity", "ilvl", "quality"]);
   const reqFilters = buildPassthroughFilters(tradeFilters.result, "req_filters");
   const miscFilters = buildPassthroughFilters(tradeFilters.result, "misc_filters").filter(

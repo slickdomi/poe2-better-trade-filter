@@ -85,9 +85,3 @@ section > h3:first-of-type {
   font-variant: small-caps;
   letter-spacing: 0.03em;
 }
-
-.misc-section h3 {
-  font-family: var(--font-heading);
-  font-variant: small-caps;
-  letter-spacing: 0.02em;
-}
