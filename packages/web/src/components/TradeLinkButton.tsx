@@ -1,13 +1,26 @@
 import { useState } from "react";
 import type { DerivedState } from "../state/derive";
+import { STATUS_OPTIONS, type BuyoutPriceValue, type StatusOption } from "../state/types";
 import { buildTradeUrl } from "../lib/tradeUrl";
+import { BuyoutPriceField } from "./BuyoutPriceField";
 
 interface Props {
   league: string;
   derived: DerivedState;
+  status: StatusOption;
+  onStatusChange: (status: StatusOption) => void;
+  buyoutPrice: BuyoutPriceValue;
+  onBuyoutPriceChange: (value: BuyoutPriceValue) => void;
 }
 
-export function TradeLinkButton({ league, derived }: Props) {
+export function TradeLinkButton({
+  league,
+  derived,
+  status,
+  onStatusChange,
+  buyoutPrice,
+  onBuyoutPriceChange,
+}: Props) {
   const [error, setError] = useState<string | null>(null);
   const disabled =
     !derived.chosenCategory &&
@@ -18,7 +31,7 @@ export function TradeLinkButton({ league, derived }: Props) {
   async function handleClick() {
     setError(null);
     try {
-      const url = await buildTradeUrl(league, derived);
+      const url = await buildTradeUrl(league, derived, status, buyoutPrice);
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to build the trade URL.");
@@ -27,6 +40,17 @@ export function TradeLinkButton({ league, derived }: Props) {
 
   return (
     <section>
+      <BuyoutPriceField value={buyoutPrice} onChange={onBuyoutPriceChange} />
+      <div className="status-select">
+        <span>Show sellers</span>
+        <select value={status} onChange={(e) => onStatusChange(e.target.value as StatusOption)}>
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <button type="button" className="trade-link-button" onClick={handleClick} disabled={disabled}>
         Open in official PoE2 trade site
       </button>

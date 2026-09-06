@@ -1,6 +1,6 @@
 import { useState } from "react";
 import filtersJson from "../data/filters.json";
-import type { FiltersData } from "../state/types";
+import type { BuyoutPriceValue, FiltersData, StatusOption } from "../state/types";
 import { usePipeline } from "../state/usePipeline";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { StatFilterList } from "../components/StatFilterList";
@@ -9,13 +9,29 @@ import { MiscFilterPanel } from "../components/MiscFilterPanel";
 import { PipelineTrail } from "../components/PipelineTrail";
 import { TradeLinkButton } from "../components/TradeLinkButton";
 import { SearchableCombobox } from "../components/SearchableCombobox";
+import { SavedQueriesPanel } from "../components/SavedQueriesPanel";
+import { listSavedQueries, type SavedQuery } from "../lib/savedQueries";
 
 const data = filtersJson as FiltersData;
 
 export function App() {
   const pipeline = usePipeline(data);
   const [league, setLeague] = useState(data.leagues[0]?.id ?? "Standard");
+  const [status, setStatus] = useState<StatusOption>("securable");
+  const [buyoutPrice, setBuyoutPrice] = useState<BuyoutPriceValue>({ currency: "" });
+  const [savedQueries, setSavedQueries] = useState(listSavedQueries);
   const { derived } = pipeline;
+
+  function refreshSavedQueries() {
+    setSavedQueries(listSavedQueries());
+  }
+
+  function handleLoadQuery(query: SavedQuery) {
+    pipeline.loadSteps(query.steps, { enforceAffixCap: query.enforceAffixCap });
+    setLeague(query.league);
+    setStatus(query.status);
+    setBuyoutPrice(query.buyoutPrice);
+  }
 
   const categoryStepIndex = pipeline.steps.findIndex((s) => s.kind === "category");
   const leagueText = data.leagues.find((l) => l.id === league)?.text ?? league;
@@ -77,11 +93,30 @@ export function App() {
             onUpdate={pipeline.updateMiscFilter}
             onRemove={pipeline.removeMiscFilter}
           />
+
+          <SavedQueriesPanel
+            queries={savedQueries}
+            onQueriesChange={refreshSavedQueries}
+            canSave={pipeline.steps.length > 0}
+            league={league}
+            status={status}
+            buyoutPrice={buyoutPrice}
+            enforceAffixCap={pipeline.enforceAffixCap}
+            steps={pipeline.steps}
+            onLoad={handleLoadQuery}
+          />
         </div>
 
         <div className="layout-right">
           <div className="trade-link-row">
-            <TradeLinkButton league={league} derived={derived} />
+            <TradeLinkButton
+              league={league}
+              derived={derived}
+              status={status}
+              onStatusChange={setStatus}
+              buyoutPrice={buyoutPrice}
+              onBuyoutPriceChange={setBuyoutPrice}
+            />
           </div>
 
           <StatFilterList

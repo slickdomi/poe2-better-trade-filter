@@ -1,5 +1,5 @@
 import type { DerivedState } from "../state/derive";
-import type { MiscFilterGroup } from "../state/types";
+import type { BuyoutPriceValue, MiscFilterGroup, StatusOption } from "../state/types";
 
 const TRADE_GROUP_KEY: Record<MiscFilterGroup, string> = {
   itemFilters: "type_filters",
@@ -20,7 +20,11 @@ const TRADE_GROUP_KEY: Record<MiscFilterGroup, string> = {
  * the same shape the trade API expects for a filter's `value`, so each
  * chosen misc/equipment/req filter can be assigned straight through below.
  */
-export function buildTradeQueryPayload(derived: DerivedState) {
+export function buildTradeQueryPayload(
+  derived: DerivedState,
+  status: StatusOption = "securable",
+  buyoutPrice?: BuyoutPriceValue,
+) {
   const filters: Record<string, { filters: Record<string, unknown> }> = {};
 
   for (const misc of derived.chosenMisc) {
@@ -34,8 +38,18 @@ export function buildTradeQueryPayload(derived: DerivedState) {
     typeFilters.filters.category = { option: derived.chosenCategory.id };
   }
 
+  // Currency alone doesn't constrain anything — only include the filter once a bound is set.
+  if (buyoutPrice && (buyoutPrice.min !== undefined || buyoutPrice.max !== undefined)) {
+    const tradeFilters = (filters.trade_filters ??= { filters: {} });
+    tradeFilters.filters.price = {
+      option: buyoutPrice.currency || null,
+      ...(buyoutPrice.min !== undefined ? { min: buyoutPrice.min } : {}),
+      ...(buyoutPrice.max !== undefined ? { max: buyoutPrice.max } : {}),
+    };
+  }
+
   const payload: Record<string, unknown> = {
-    status: { option: "online" },
+    status: { option: status },
     stats: [
       {
         type: "and",
@@ -62,8 +76,13 @@ async function gzipBase64Url(json: string): Promise<string> {
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export async function buildTradeUrl(league: string, derived: DerivedState): Promise<string> {
-  const payload = buildTradeQueryPayload(derived);
+export async function buildTradeUrl(
+  league: string,
+  derived: DerivedState,
+  status: StatusOption = "securable",
+  buyoutPrice?: BuyoutPriceValue,
+): Promise<string> {
+  const payload = buildTradeQueryPayload(derived, status, buyoutPrice);
   const encoded = await gzipBase64Url(JSON.stringify(payload));
   return `https://www.pathofexile.com/trade2/search/poe2/${encodeURIComponent(league)}/${encoded}`;
 }

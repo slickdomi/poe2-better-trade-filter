@@ -63,6 +63,11 @@ export function usePipeline(data: FiltersData) {
     setSteps([]);
   }
 
+  function loadSteps(newSteps: Step[], options?: { enforceAffixCap?: boolean }) {
+    setSteps(newSteps);
+    if (options?.enforceAffixCap !== undefined) setEnforceAffixCap(options.enforceAffixCap);
+  }
+
   return {
     steps,
     derived,
@@ -80,5 +85,6 @@ export function usePipeline(data: FiltersData) {
     undoLast,
     removeStepAt,
     reset,
+    loadSteps,
   };
 }

@@ -45,6 +45,41 @@ main {
   text-align: center;
 }
 
+.status-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin-bottom: 0.6rem;
+  text-align: left;
+}
+
+.status-select > span {
+  flex: 1;
+}
+
+.buyout-price-field .combobox {
+  flex: 0 0 190px;
+}
+
+.buyout-price-field input[type="number"] {
+  width: 4rem;
+}
+
+.status-select select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+}
+
+.status-select select:hover {
+  border-color: var(--border-strong);
+}
+
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
@@ -551,6 +586,60 @@ input[type="text"]:focus {
 
 input[type="checkbox"] {
   accent-color: var(--accent);
+}
+
+/* Saved queries ---------------------------------------------------------- */
+
+.saved-queries-save-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.saved-queries-save-row input {
+  flex: 1;
+}
+
+.saved-queries-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+}
+
+.saved-queries-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.saved-queries-list li:last-child {
+  border-bottom: none;
+}
+
+.saved-query-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.saved-query-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.saved-query-meta {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.saved-query-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex: none;
 }
 
 /* Footer ----------------------------------------------------------------- */

@@ -47,3 +47,44 @@ export type Step =
   | { kind: "stat"; statId: string; min?: number; max?: number }
   | { kind: "itemName"; name: string }
   | { kind: "misc"; group: MiscFilterGroup; filterId: string; value: MiscFilterValue };
+
+/**
+ * The trade site's seller-availability filter. Values are the literal
+ * `status.option` strings the trade API expects — confirmed by decoding
+ * real pathofexile.com/trade2 share links for each choice.
+ */
+export type StatusOption = "securable" | "available" | "online" | "onlineleague" | "any";
+
+export const STATUS_OPTIONS: { id: StatusOption; label: string }[] = [
+  { id: "securable", label: "Instant buyout" },
+  { id: "available", label: "Instant buyout and in person" },
+  { id: "online", label: "Online (in person)" },
+  { id: "onlineleague", label: "Online in league (in person)" },
+  { id: "any", label: "Any" },
+];
+
+/**
+ * Currency ids for the trade site's Buyout Price filter (`trade_filters.price`),
+ * taken from the official trade-filters.json. "" (real API id: null) is the
+ * default "Exalted Orb Equivalent" normalization, not "no currency".
+ */
+export const PRICE_CURRENCY_OPTIONS: { id: string; text: string }[] = [
+  { id: "", text: "Exalted Orb Equivalent" },
+  { id: "exalted_divine", text: "Exalted or Divine Orbs" },
+  { id: "aug", text: "Orb of Augmentation" },
+  { id: "transmute", text: "Orb of Transmutation" },
+  { id: "exalted", text: "Exalted Orb" },
+  { id: "regal", text: "Regal Orb" },
+  { id: "chaos", text: "Chaos Orb" },
+  { id: "vaal", text: "Vaal Orb" },
+  { id: "alch", text: "Orb of Alchemy" },
+  { id: "divine", text: "Divine Orb" },
+  { id: "annul", text: "Orb of Annulment" },
+  { id: "mirror", text: "Mirror of Kalandra" },
+];
+
+export interface BuyoutPriceValue {
+  currency: string;
+  min?: number;
+  max?: number;
+}
