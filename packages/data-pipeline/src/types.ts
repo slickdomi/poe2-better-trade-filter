@@ -16,6 +16,7 @@ export interface RepoeMod {
   required_level: number;
   groups: string[];
   stats: { id: string; min: number; max: number }[];
+  spawn_weights: { tag: string; weight: number }[];
 }
 
 export type RepoeModsFile = Record<string, RepoeMod>;
@@ -37,13 +38,19 @@ export interface StatTier {
   max: number;
 }
 
+/** One rollable pool this stat can come from — "Base" (normal prefix/suffix crafting), "Corrupted", "Implicit", etc. — each with its own independent tier ladder. */
+export interface StatTierGroup {
+  source: string;
+  tiers: StatTier[];
+}
+
 export interface TradeStatEntry {
   id: string;
   text: string;
   type: string;
   group: string;
-  tiers?: StatTier[];
-  /** Which affix slot this stat's rollable mod pool occupies, when it has one (some stats are implicit/corrupted-only). */
+  tierGroups?: StatTierGroup[];
+  /** Which affix slot the "Base" pool occupies, when it has one (some stats are implicit/corrupted/fractured-only). */
   affixType?: "prefix" | "suffix";
 }
 

@@ -16,6 +16,9 @@
  * do appear in a live trade-items.json pull — per direct confirmation
  * these weapon types aren't actually obtainable in the current PoE2
  * Early Access build yet. Re-add them once they ship.
+ *
+ * FishingRod is omitted too — it's a real, tradeable item, just an easter
+ * egg rather than something anyone filters trade for.
  */
 export const CATEGORY_ITEM_CLASSES: Record<string, string[]> = {
   "weapon.oneaxe": ["One Hand Axe"],
@@ -34,11 +37,10 @@ export const CATEGORY_ITEM_CLASSES: Record<string, string[]> = {
   "weapon.sceptre": ["Sceptre"],
   "weapon.staff": ["Staff"],
   "weapon.caster": ["Wand", "Sceptre", "Staff"],
-  "weapon.rod": ["FishingRod"],
   "weapon": [
     "One Hand Axe", "One Hand Mace", "Spear",
     "Two Hand Axe", "Two Hand Mace", "Warstaff", "Talisman",
-    "Bow", "Crossbow", "Wand", "Sceptre", "Staff", "FishingRod",
+    "Bow", "Crossbow", "Wand", "Sceptre", "Staff",
   ],
   "armour.helmet": ["Helmet"],
   "armour.chest": ["Body Armour"],

@@ -104,6 +104,22 @@ section > h3:first-of-type {
   border-bottom: 1px solid var(--border);
 }
 
+.category-section {
+  margin-top: 0.9rem;
+}
+
+.category-section:first-of-type {
+  margin-top: 0;
+}
+
+.category-section-label {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 0.35rem;
+}
+
 .category-grid {
   display: flex;
   flex-wrap: wrap;
@@ -224,8 +240,38 @@ section > h3:first-of-type {
   color: var(--badge-implicit-text);
 }
 
-.tier-table {
+.group-fractured {
+  background: var(--badge-fractured-bg);
+  color: var(--badge-fractured-text);
+}
+
+.group-corrupted {
+  background: var(--badge-corrupted-bg);
+  color: var(--badge-corrupted-text);
+}
+
+.group-desecrated {
+  background: var(--badge-desecrated-bg);
+  color: var(--badge-desecrated-text);
+}
+
+.tier-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
   margin: 0.4rem 0 0.8rem;
+}
+
+.tier-group-source {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 0.2rem;
+}
+
+.tier-table {
+  margin: 0;
   border-collapse: collapse;
   font-size: 0.85rem;
   font-family: var(--font-mono);

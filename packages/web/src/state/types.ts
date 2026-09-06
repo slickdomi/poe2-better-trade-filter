@@ -5,12 +5,17 @@ export interface StatTier {
   max: number;
 }
 
+export interface StatTierGroup {
+  source: string;
+  tiers: StatTier[];
+}
+
 export interface TradeStatEntry {
   id: string;
   text: string;
   type: string;
   group: string;
-  tiers?: StatTier[];
+  tierGroups?: StatTierGroup[];
   affixType?: "prefix" | "suffix";
 }
 

@@ -38,32 +38,49 @@ function Legend() {
       <span className="legend-item">
         <GroupBadge group="Implicit" /> Implicit modifier
       </span>
+      <span className="legend-item">
+        <GroupBadge group="Fractured" /> Selectable as a fractured mod too
+      </span>
     </div>
   );
 }
 
-function TierTable({ tiers }: { tiers: NonNullable<DerivedStatFilter["tiers"]> }) {
+/**
+ * A stat can roll from more than one independent pool (a normal Base
+ * prefix/suffix, a Corrupted-only addition, a base Implicit, ...), each
+ * with its own tier progression — shown as separate labeled tables rather
+ * than merged into one, matching the official site's per-source tooltip
+ * sections.
+ */
+function TierGroups({ tierGroups }: { tierGroups: NonNullable<DerivedStatFilter["tierGroups"]> }) {
   return (
-    <table className="tier-table">
-      <thead>
-        <tr>
-          <th>Tier</th>
-          <th>Req. level</th>
-          <th>Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        {tiers.map((t) => (
-          <tr key={t.tier}>
-            <td>T{t.tier}</td>
-            <td>{t.requiredLevel}</td>
-            <td>
-              {t.min}–{t.max}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="tier-groups">
+      {tierGroups.map((g) => (
+        <div key={g.source} className="tier-group">
+          <div className="tier-group-source">{g.source}</div>
+          <table className="tier-table">
+            <thead>
+              <tr>
+                <th>Tier</th>
+                <th>Req. level</th>
+                <th>Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.tiers.map((t) => (
+                <tr key={t.tier}>
+                  <td>T{t.tier}</td>
+                  <td>{t.requiredLevel}</td>
+                  <td>
+                    {t.min}–{t.max}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -135,7 +152,7 @@ export function StatFilterList({
                   onRangeChange(s.statId, s.min, e.target.value === "" ? undefined : Number(e.target.value))
                 }
               />
-              {s.tiers && s.tiers.length > 0 && (
+              {s.tierGroups && s.tierGroups.length > 0 && (
                 <button type="button" onClick={() => toggleTiers(s.statId)}>
                   Tiers {expandedTiers.has(s.statId) ? "▴" : "▾"}
                 </button>
@@ -144,7 +161,9 @@ export function StatFilterList({
                 Remove
               </button>
             </div>
-            {s.tiers && s.tiers.length > 0 && expandedTiers.has(s.statId) && <TierTable tiers={s.tiers} />}
+            {s.tierGroups && s.tierGroups.length > 0 && expandedTiers.has(s.statId) && (
+              <TierGroups tierGroups={s.tierGroups} />
+            )}
           </li>
         ))}
       </ul>

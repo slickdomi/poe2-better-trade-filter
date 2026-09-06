@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "fetch": "tsx src/fetch.ts && tsx src/parse.ts"
+    "fetch": "tsx src/fetch.ts && tsx src/poe2dbScrape.ts && tsx src/parse.ts",
+    "scrape:poe2db": "tsx src/poe2dbScrape.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

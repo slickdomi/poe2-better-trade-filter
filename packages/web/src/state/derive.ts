@@ -1,10 +1,20 @@
 import type { FilterDef, FiltersData, MiscFilterGroup, MiscFilterValue, Step, TradeStatEntry } from "./types";
 
+// Plain (bare) modifiers first, source-restricted variants after — rather
+// than alphabetical, which would put "Desecrated"/"Fractured" ahead of
+// "Explicit"/"Implicit".
+const GROUP_DISPLAY_ORDER = ["Explicit", "Implicit", "Fractured", "Desecrated"];
+
+function groupSortIndex(group: string): number {
+  const index = GROUP_DISPLAY_ORDER.indexOf(group);
+  return index === -1 ? GROUP_DISPLAY_ORDER.length : index;
+}
+
 export interface DerivedStatFilter {
   statId: string;
   text: string;
   group: string;
-  tiers?: TradeStatEntry["tiers"];
+  tierGroups?: TradeStatEntry["tierGroups"];
   affixType?: TradeStatEntry["affixType"];
   min?: number;
   max?: number;
@@ -96,7 +106,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
         statId: s.statId,
         text: stat?.text ?? s.statId,
         group: stat?.group ?? "",
-        tiers: stat?.tiers,
+        tierGroups: stat?.tierGroups,
         affixType: stat?.affixType,
         min: s.min,
         max: s.max,
@@ -118,7 +128,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
       if (s.affixType === "suffix") return suffixCount < 3;
       return true;
     })
-    .sort((a, b) => a.group.localeCompare(b.group) || a.text.localeCompare(b.text));
+    .sort((a, b) => groupSortIndex(a.group) - groupSortIndex(b.group) || a.text.localeCompare(b.text));
 
   const itemNameStep = steps.find((s): s is Step & { kind: "itemName" } => s.kind === "itemName");
   const availableItemNames = chosenCategory ? (data.itemNamesByCategory[chosenCategory.id] ?? []) : [];

@@ -55,6 +55,12 @@
   --badge-explicit-text: #b8b6a8;
   --badge-implicit-bg: #1c2a1c;
   --badge-implicit-text: #8ec98e;
+  --badge-fractured-bg: #2c2410;
+  --badge-fractured-text: #d9c07a;
+  --badge-corrupted-bg: #2c1414;
+  --badge-corrupted-text: #d97a7a;
+  --badge-desecrated-bg: #241a2c;
+  --badge-desecrated-text: #b98ed9;
 
   /* Shape */
   --radius-sm: 2px;

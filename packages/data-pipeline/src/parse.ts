@@ -1,11 +1,18 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildTradeStatIndex, normalizeRepoeText, resolveTradeStatId } from "./matchStatIds.js";
-import { eligibleModIdsForItemClasses, flattenModsByBase } from "./buildEligibility.js";
+import { buildTradeStatIndex, normalizeRepoeText, normalizeTradeText, resolveTradeStatId } from "./matchStatIds.js";
+import {
+  buildResidualMods,
+  collectCoveredModIds,
+  eligibleModIdsForItemClasses,
+  flattenModsByBase,
+  residualEligibleModIds,
+} from "./buildEligibility.js";
 import { buildPassthroughFilters } from "./equipmentFilters.js";
 import { buildItemNamesByCategory } from "./itemNames.js";
 import { CATEGORY_ITEM_CLASSES } from "./categoryItemClasses.js";
+import { loadPoe2dbGenesisTreeStatIds } from "./poe2db/loadPoe2dbEligibility.js";
 import {
   equipmentFilterIdsForCategory,
   MISC_FILTER_IDS_NEVER_APPLICABLE,
@@ -19,7 +26,7 @@ import type {
   RepoeMod,
   RepoeModsByBaseFile,
   RepoeModsFile,
-  StatTier,
+  StatTierGroup,
   TradeStatEntry,
   TradeStatGroup,
 } from "./types.js";
@@ -34,40 +41,84 @@ async function loadJson<T>(name: string): Promise<T> {
 }
 
 /**
- * Different mod pools (a normal prefix/suffix ladder, an essence-only
- * variant, a unique-only fixed mod, ...) can normalize to identical trade
- * stat text. RePoE's `groups` field is the game's own "these are mutually
- * exclusive tiers of one another" key, so picking the most common group
- * among the collected mods filters out that cross-pool noise before
- * building the ladder.
+ * The same trade stat can be reachable from more than one independent mod
+ * pool — a normal prefix/suffix roll, a corrupted-implicit addition, a base
+ * implicit — each with its own tier ladder (compare the official site's
+ * "Base Prefix/Suffix" vs "Corrupted" vs "Implicit" sections on a stat's
+ * tooltip). Group by source first, then within each source apply the same
+ * "most common RePoE mod `group`" dedupe as before, since a single source
+ * can still contain unrelated pools that happen to share a generation_type.
  */
-interface TierInfo {
-  tiers: StatTier[];
-  affixType?: "prefix" | "suffix";
+const SOURCE_ORDER = ["Base", "Implicit", "Corrupted", "Desecrated", "Essence", "Other"];
+
+function sourceForMod(mod: RepoeMod): string {
+  // domain "desecrated" mods (Abyssal Lich boss mods) are still ordinary
+  // generation_type prefix/suffix rolls, but trade tracks them under their
+  // own separate desecrated.stat_XXX id space (like fractured.stat_XXX) —
+  // checked directly against a live pull rather than assumed. Route them
+  // out before the generation_type switch so they never get merged into
+  // the plain "Base" ladder.
+  if (mod.domain === "desecrated") return "Desecrated";
+  if (mod.generation_type === "essence") return "Essence";
+  switch (mod.generation_type) {
+    case "prefix":
+    case "suffix":
+      return "Base";
+    case "corrupted":
+      return "Corrupted";
+    case "implicit":
+      return "Implicit";
+    default:
+      return "Other";
+  }
 }
 
-function buildTierInfo(mods: RepoeMod[]): TierInfo {
-  if (mods.length === 0) return { tiers: [] };
+function buildTiersForGroup(mods: RepoeMod[]) {
   const counts = new Map<string, number>();
-  for (const m of mods) {
-    const key = m.groups[0] ?? "";
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
+  for (const m of mods) counts.set(m.groups[0] ?? "", (counts.get(m.groups[0] ?? "") ?? 0) + 1);
   const [dominantGroup] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
   const filtered = mods.filter((m) => (m.groups[0] ?? "") === dominantGroup);
 
   const sorted = [...filtered].sort((a, b) => a.required_level - b.required_level);
-  const tiers = sorted.map((m, i) => ({
-    tier: sorted.length - i,
-    requiredLevel: m.required_level,
-    min: m.stats[0].min,
-    max: m.stats[0].max,
-  }));
-  // A mod group is a single prefix or suffix by design, so every tier in
-  // the (already deduped-to-one-group) list shares the same generation_type.
-  const generationType = filtered[0]?.generation_type;
-  const affixType = generationType === "prefix" || generationType === "suffix" ? generationType : undefined;
-  return { tiers, affixType };
+  return {
+    tiers: sorted.map((m, i) => ({
+      tier: sorted.length - i,
+      requiredLevel: m.required_level,
+      min: m.stats[0].min,
+      max: m.stats[0].max,
+    })),
+    generationType: filtered[0]?.generation_type,
+  };
+}
+
+interface TierInfo {
+  tierGroups: StatTierGroup[];
+  affixType?: "prefix" | "suffix";
+}
+
+function buildTierGroups(mods: RepoeMod[]): TierInfo {
+  const bySource = new Map<string, RepoeMod[]>();
+  for (const m of mods) {
+    const source = sourceForMod(m);
+    const list = bySource.get(source);
+    if (list) list.push(m);
+    else bySource.set(source, [m]);
+  }
+
+  const tierGroups: StatTierGroup[] = [];
+  let affixType: "prefix" | "suffix" | undefined;
+  for (const [source, sourceMods] of bySource) {
+    const { tiers, generationType } = buildTiersForGroup(sourceMods);
+    tierGroups.push({ source, tiers });
+    // Desecrated mods still occupy a normal prefix/suffix slot (they just
+    // come from a different source), so they count toward the 3/3 cap too.
+    if ((source === "Base" || source === "Desecrated") && (generationType === "prefix" || generationType === "suffix")) {
+      affixType = generationType;
+    }
+  }
+  tierGroups.sort((a, b) => SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source));
+
+  return { tierGroups, affixType };
 }
 
 async function main() {
@@ -83,6 +134,20 @@ async function main() {
   const statIndex = buildTradeStatIndex(tradeStats.result);
   const tagKeyToModIds = flattenModsByBase(modsByBase);
   const statTextById = new Map(tradeStats.result.flatMap((g) => g.entries).map((e) => [e.id, e.text]));
+
+  // Mods mods_by_base.json has no entry for at all (e.g. domain "desecrated")
+  // — matched instead via their own spawn_weights against each category's
+  // bases. See residualEligibleModIds' doc comment for exactly what this
+  // does and doesn't recover.
+  const coveredModIds = collectCoveredModIds(tagKeyToModIds);
+  const residualMods = buildResidualMods(mods, coveredModIds);
+  console.log(`residual (non-mods_by_base) mods considered via spawn_weights: ${residualMods.length}`);
+
+  // Genesis Tree / Otherworldly mods (rings/belts/etc. dropping pre-rolled
+  // with normally-restricted mods): resolved from poe2db's scraped page
+  // data, not RePoE's own spawn_weights tag — see loadPoe2dbEligibility.ts.
+  const poe2dbGenesisStatIds = await loadPoe2dbGenesisTreeStatIds(RAW_CACHE_DIR, statIndex);
+  console.log(`poe2db genesis-tree item classes with data: ${poe2dbGenesisStatIds.size}`);
 
   const categoryOptionText = new Map<string, string>();
   const typeFilters = tradeFilters.result.find((g) => g.id === "type_filters");
@@ -112,7 +177,10 @@ async function main() {
     }
     categories.push({ id: categoryId, text });
 
-    const modIds = eligibleModIdsForItemClasses(repoeClasses, baseItems, tagKeyToModIds);
+    const modIds = new Set([
+      ...eligibleModIdsForItemClasses(repoeClasses, baseItems, tagKeyToModIds),
+      ...residualEligibleModIds(repoeClasses, baseItems, residualMods),
+    ]);
     const statIds = new Set<string>();
 
     for (const modId of modIds) {
@@ -130,27 +198,33 @@ async function main() {
       }
       const isImplicit = mod.generation_type === "implicit";
       const bucketOrder = isImplicit ? ["implicit", "explicit"] : ["explicit", "implicit"];
-      const normalized = normalizeRepoeText(mod.text);
+      const normalized = normalizeRepoeText(mod.text, mod.stats[0].min, mod.stats[0].max);
       const resolved = resolveTradeStatId(statIndex, bucketOrder, normalized);
       if (resolved) {
         statIds.add(resolved.id);
         usedStatIds.add(resolved.id);
         matched++;
-        // Tier ladders only make sense for the actual rollable crafting
-        // pool (prefix/suffix). Corrupted-implicit and base-implicit mods
-        // are fixed, single-value additions from a different pool that
-        // happens to share the same stat text and mod `group` — mixing
-        // them in produces a nonsensical, non-monotonic "ladder".
-        if (mod.generation_type === "prefix" || mod.generation_type === "suffix") {
-          let modsForStat = statIdToMods.get(resolved.id);
-          if (!modsForStat) {
-            modsForStat = new Map();
-            statIdToMods.set(resolved.id, modsForStat);
-          }
-          modsForStat.set(modId, mod);
+        // Collected per pool (Base/Corrupted/Implicit) in buildTierGroups
+        // below, not merged — each gets its own independent ladder.
+        let modsForStat = statIdToMods.get(resolved.id);
+        if (!modsForStat) {
+          modsForStat = new Map();
+          statIdToMods.set(resolved.id, modsForStat);
         }
+        modsForStat.set(modId, mod);
       } else {
         unmatched++;
+      }
+    }
+
+    // Genesis Tree / Otherworldly: union in poe2db's page-confirmed stat
+    // ids for every item class this category maps to.
+    for (const itemClass of repoeClasses) {
+      const poe2dbIds = poe2dbGenesisStatIds.get(itemClass);
+      if (!poe2dbIds) continue;
+      for (const id of poe2dbIds) {
+        statIds.add(id);
+        usedStatIds.add(id);
       }
     }
 
@@ -174,17 +248,85 @@ async function main() {
       .filter((e) => usedStatIds.has(e.id))
       .map((e) => {
         const modsForStat = statIdToMods.get(e.id);
-        const { tiers, affixType } = modsForStat ? buildTierInfo([...modsForStat.values()]) : { tiers: [], affixType: undefined };
+        const { tierGroups, affixType } = modsForStat
+          ? buildTierGroups([...modsForStat.values()])
+          : { tierGroups: [], affixType: undefined };
         return {
           id: e.id,
           text: e.text,
           type: e.type,
           group: g.label,
-          tiers: tiers.length > 0 ? tiers : undefined,
+          tierGroups: tierGroups.length > 0 ? tierGroups : undefined,
           affixType,
         };
       }),
   );
+
+  // Desecrated mods already have their own tierGroup (via sourceForMod
+  // above), built from their own mod entries — so unlike Fractured, this
+  // doesn't reuse another group's tiers, it just relocates the group that's
+  // already there onto its own separate desecrated.stat_XXX entry (trade
+  // tracks these with a distinct id, same as fractured).
+  const desecratedBucket = statIndex.get("desecrated");
+  const desecratedAdditionsByCategory: Record<string, string[]> = {};
+  for (const stat of [...stats]) {
+    if (!stat.tierGroups) continue;
+    const desecratedIndex = stat.tierGroups.findIndex((g) => g.source === "Desecrated");
+    if (desecratedIndex === -1) continue;
+    const [desecratedGroup] = stat.tierGroups.splice(desecratedIndex, 1);
+    if (stat.tierGroups.length === 0) stat.tierGroups = undefined;
+
+    const desecratedEntry = desecratedBucket?.get(normalizeTradeText(stat.text));
+    if (!desecratedEntry) continue;
+
+    stats.push({
+      id: desecratedEntry.id,
+      text: desecratedEntry.text,
+      type: desecratedEntry.type,
+      group: "Desecrated",
+      tierGroups: [desecratedGroup],
+      affixType: stat.affixType,
+    });
+    for (const [categoryId, ids] of Object.entries(eligibility)) {
+      if (ids.includes(stat.id)) {
+        (desecratedAdditionsByCategory[categoryId] ??= []).push(desecratedEntry.id);
+      }
+    }
+  }
+  for (const [categoryId, ids] of Object.entries(desecratedAdditionsByCategory)) {
+    eligibility[categoryId] = [...eligibility[categoryId], ...ids].sort();
+  }
+
+  // Fracturing doesn't change a mod's roll — it just locks whichever value
+  // an already-rolled Base affix has — so any stat with a "Base" pool that
+  // also has a same-worded entry in trade's separate `fractured` stat group
+  // gets exposed as its own selectable "Fractured" variant, reusing the
+  // Base tier ladder and eligible everywhere the Base version is.
+  const fracturedBucket = statIndex.get("fractured");
+  const fracturedAdditionsByCategory: Record<string, string[]> = {};
+  for (const stat of [...stats]) {
+    const baseGroup = stat.tierGroups?.find((g) => g.source === "Base");
+    if (!baseGroup) continue;
+    const fracturedEntry = fracturedBucket?.get(normalizeTradeText(stat.text));
+    if (!fracturedEntry) continue;
+
+    stats.push({
+      id: fracturedEntry.id,
+      text: fracturedEntry.text,
+      type: fracturedEntry.type,
+      group: "Fractured",
+      tierGroups: [{ source: "Fractured", tiers: baseGroup.tiers }],
+      affixType: stat.affixType,
+    });
+    for (const [categoryId, ids] of Object.entries(eligibility)) {
+      if (ids.includes(stat.id)) {
+        (fracturedAdditionsByCategory[categoryId] ??= []).push(fracturedEntry.id);
+      }
+    }
+  }
+  for (const [categoryId, ids] of Object.entries(fracturedAdditionsByCategory)) {
+    eligibility[categoryId] = [...eligibility[categoryId], ...ids].sort();
+  }
 
   const itemNamesByCategory = buildItemNamesByCategory(CATEGORY_ITEM_CLASSES, baseItems);
   const itemFilters = buildPassthroughFilters(tradeFilters.result, "type_filters", ["rarity", "ilvl", "quality"]);
