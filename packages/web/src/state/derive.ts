@@ -29,6 +29,13 @@ export interface DerivedStatFilter {
   max?: number;
   sectionId: string;
   weight?: number;
+  /** Only ever rolls on Unique items — not part of the normal weighted-affix pool, so it doesn't count toward the 3/3 affix cap either. */
+  isUniqueOnly: boolean;
+}
+
+/** An available-to-add modifier, same as a chosen one but without range/section/weight (those only exist once actually added). */
+export interface DerivedAvailableStat extends TradeStatEntry {
+  isUniqueOnly: boolean;
 }
 
 /** Every query has this implicit "all filters must match" section; it can't be renamed, retyped, or removed. */
@@ -46,6 +53,8 @@ export interface DerivedStatSection {
 export interface DeriveOptions {
   /** Rare items are capped at 3 prefixes and 3 suffixes — hide stats that would exceed whichever cap is already full. */
   enforceAffixCap: boolean;
+  /** Off by default: Unique-only mods aren't rollable on a normal rare/magic item, so they'd otherwise just be noise in the modifier search. */
+  includeUniqueMods: boolean;
 }
 
 export interface DerivedMiscFilter {
@@ -59,7 +68,7 @@ export interface DerivedState {
   chosenCategory?: { id: string; text: string };
   /** Categories still possible given whatever stats/misc filters are chosen so far. */
   availableCategories: { id: string; text: string }[];
-  availableStats: TradeStatEntry[];
+  availableStats: DerivedAvailableStat[];
   chosenStats: DerivedStatFilter[];
   statSections: DerivedStatSection[];
   chosenItemName?: string;
@@ -138,10 +147,21 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
   const compatibleCategories = chosenCategory
     ? [chosenCategory]
     : data.categories.filter((c) => {
+        // Union with uniqueEligibility regardless of the "show unique
+        // modifiers" toggle — that only controls what's *offered* going
+        // forward, not whether an already-chosen unique-only stat (like
+        // "# Intelligence Requirement", which never appears in the normal
+        // per-category pool by design) still counts as compatible with a
+        // category here.
         const eligible = data.eligibility[c.id] ?? [];
-        return chosenStatIds.every((id) => eligible.includes(id));
+        const uniqueEligible = data.uniqueEligibility[c.id] ?? [];
+        return chosenStatIds.every((id) => eligible.includes(id) || uniqueEligible.includes(id));
       });
   const possibleCategoryIds = new Set(compatibleCategories.map((c) => c.id));
+  // Computed regardless of the "show unique modifiers" toggle: an already-chosen
+  // unique-only stat still needs its badge even if the toggle is later switched
+  // off, and it's cheap either way.
+  const uniqueStatIdUnion = new Set(compatibleCategories.flatMap((c) => data.uniqueEligibility[c.id] ?? []));
 
   const sectionSteps = steps.filter((s): s is Step & { kind: "statSection" } => s.kind === "statSection");
   const sectionIdSet = new Set(sectionSteps.map((s) => s.sectionId));
@@ -162,6 +182,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
         max: s.max,
         sectionId,
         weight: s.weight,
+        isUniqueOnly: uniqueStatIdUnion.has(s.statId),
       };
     });
 
@@ -228,8 +249,11 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
     eligibleStatIdUnion = new Set(compatibleCategories.flatMap((c) => data.eligibility[c.id] ?? []));
     availableItemNames = [];
   }
+  if (options.includeUniqueMods) {
+    for (const id of uniqueStatIdUnion) eligibleStatIdUnion.add(id);
+  }
 
-  const availableStats = [...eligibleStatIdUnion]
+  const availableStats: DerivedAvailableStat[] = [...eligibleStatIdUnion]
     .filter((id) => !chosenStatIdSet.has(id))
     .map((id) => statsById.get(id))
     .filter((s): s is TradeStatEntry => s !== undefined)
@@ -239,6 +263,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
       if (s.affixType === "suffix") return suffixCount < 3;
       return true;
     })
+    .map((s) => ({ ...s, isUniqueOnly: uniqueStatIdUnion.has(s.id) }))
     .sort((a, b) => groupSortIndex(a.group) - groupSortIndex(b.group) || a.text.localeCompare(b.text));
 
   const relevantReqFilters = narrowFilters(data.reqFilters, data.reqFilterIdsByCategory, compatibleCategories);

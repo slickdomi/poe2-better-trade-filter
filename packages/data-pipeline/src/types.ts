@@ -94,6 +94,8 @@ export interface FiltersOutput {
   categories: { id: string; text: string }[];
   stats: TradeStatEntry[];
   eligibility: Record<string, string[]>;
+  /** Mods that only appear on Unique items for this category (hardcoded, not part of the normal weighted-roll pool) — hidden unless the "show unique modifiers" toggle is on. Never overlaps `eligibility` for the same category. */
+  uniqueEligibility: Record<string, string[]>;
   /** Same idea as `eligibility`, scoped to one exact base item name rather than a whole category — see parse.ts for why. */
   eligibilityByItemName: Record<string, string[]>;
   itemNamesByCategory: Record<string, string[]>;

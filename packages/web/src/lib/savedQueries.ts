@@ -19,9 +19,14 @@ function readAll(): SavedQuery[] {
   try {
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    // Queries saved before these filters existed default to "securable" (instant buyout)
-    // and no buyout price constraint.
-    return parsed.map((q) => ({ status: "securable", buyoutPrice: { currency: "" }, ...q }));
+    // Queries saved before these filters existed default to "securable" (instant buyout),
+    // no buyout price constraint, and unique-only modifiers hidden.
+    return parsed.map((q) => ({
+      status: "securable",
+      buyoutPrice: { currency: "" },
+      includeUniqueMods: false,
+      ...q,
+    }));
   } catch {
     return [];
   }
@@ -49,6 +54,7 @@ export function saveQuery(input: QuerySnapshot & { name: string }): SavedQuery {
     status: input.status,
     buyoutPrice: input.buyoutPrice,
     enforceAffixCap: input.enforceAffixCap,
+    includeUniqueMods: input.includeUniqueMods,
     steps: input.steps,
   };
   writeAll([...readAll(), query]);

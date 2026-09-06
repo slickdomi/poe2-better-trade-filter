@@ -304,6 +304,11 @@ section > h3:first-of-type {
   color: var(--badge-desecrated-text);
 }
 
+.group-unique {
+  background: var(--badge-unique-bg);
+  color: var(--badge-unique-text);
+}
+
 .tier-groups {
   display: flex;
   flex-wrap: wrap;
@@ -411,6 +416,15 @@ section > h3:first-of-type {
 .affix-cap-scope {
   font-size: 0.75rem;
   color: var(--text-faint);
+}
+
+.unique-mods-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin: 0 0 0.6rem;
 }
 
 .chosen-stats .stat-text {

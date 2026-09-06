@@ -3,24 +3,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { extractModsViewCalls } from "./poe2db/extractModsView.js";
 import { ITEM_CLASS_TO_POE2DB_SLUG } from "./poe2db/itemClassSlugs.js";
+import { stripHtml } from "./poe2db/stripHtml.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = path.resolve(HERE, "../raw-cache/poe2db");
 
 const CONTACT_EMAIL = process.env.CONTACT_EMAIL ?? "set-CONTACT_EMAIL-env-var@example.com";
 const USER_AGENT = `Mozilla/5.0 (compatible; poe2-better-trade-filter/0.1; contact: ${CONTACT_EMAIL})`;
-
-function stripHtml(s: string): string {
-  return s
-    .replace(/<[^>]+>/g, "")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 interface RawModEntry {
   Name: string;

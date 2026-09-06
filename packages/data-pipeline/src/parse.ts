@@ -14,6 +14,7 @@ import { buildPassthroughFilters } from "./equipmentFilters.js";
 import { buildItemNamesByCategory } from "./itemNames.js";
 import { CATEGORY_ITEM_CLASSES } from "./categoryItemClasses.js";
 import { loadPoe2dbGenesisTreeStatIds } from "./poe2db/loadPoe2dbEligibility.js";
+import { loadPoe2dbUniqueStatIds } from "./poe2db/loadPoe2dbUniqueEligibility.js";
 import {
   equipmentFilterIdsForCategory,
   MISC_FILTER_IDS_NEVER_APPLICABLE,
@@ -50,7 +51,7 @@ async function loadJson<T>(name: string): Promise<T> {
  * "most common RePoE mod `group`" dedupe as before, since a single source
  * can still contain unrelated pools that happen to share a generation_type.
  */
-const SOURCE_ORDER = ["Base", "Implicit", "Corrupted", "Desecrated", "Essence", "Other"];
+const SOURCE_ORDER = ["Base", "Implicit", "Corrupted", "Desecrated", "Essence", "Unique", "Other"];
 
 function sourceForMod(mod: RepoeMod): string {
   // domain "desecrated" mods (Abyssal Lich boss mods) are still ordinary
@@ -69,6 +70,8 @@ function sourceForMod(mod: RepoeMod): string {
       return "Corrupted";
     case "implicit":
       return "Implicit";
+    case "unique":
+      return "Unique";
     default:
       return "Other";
   }
@@ -195,6 +198,11 @@ async function main() {
   const poe2dbGenesisStatIds = await loadPoe2dbGenesisTreeStatIds(RAW_CACHE_DIR, statIndex);
   console.log(`poe2db genesis-tree item classes with data: ${poe2dbGenesisStatIds.size}`);
 
+  // Fills gaps in RePoE's own (incomplete) unique-item mod coverage — see
+  // loadPoe2dbUniqueEligibility.ts's doc comment.
+  const poe2dbUniqueStatIds = await loadPoe2dbUniqueStatIds(RAW_CACHE_DIR, statIndex, baseItems);
+  console.log(`poe2db unique-item classes with data: ${poe2dbUniqueStatIds.size}`);
+
   const categoryOptionText = new Map<string, string>();
   const typeFilters = tradeFilters.result.find((g) => g.id === "type_filters");
   const categoryFilter = typeFilters?.filters.find((f) => f.id === "category");
@@ -215,6 +223,7 @@ async function main() {
   // already happens once per modId here regardless.
   const modIdToStatId = new Map<string, string>();
   const eligibility: Record<string, string[]> = {};
+  const uniqueEligibility: Record<string, string[]> = {};
   const reqFilterIdsByCategory: Record<string, string[]> = {};
   const equipmentFilterIdsByCategory: Record<string, string[]> = {};
   const categories: { id: string; text: string }[] = [];
@@ -235,26 +244,27 @@ async function main() {
       ...residualEligibleModIds(repoeClasses, baseItems, residualMods),
     ]);
     const statIds = new Set<string>();
+    // mods_by_base.json's per-base-tag entries include a "unique" bucket:
+    // mods hardcoded onto specific Unique items rather than part of the
+    // normal weighted-roll pool. Tracked separately (not merged into
+    // `statIds`/`eligibility`) so they only surface behind the "show unique
+    // modifiers" toggle, not by default.
+    const uniqueStatIds = new Set<string>();
 
     for (const modId of modIds) {
       const mod = mods[modId];
       if (!mod || !mod.text) continue;
-      // mods_by_base.json's per-base-tag entries include a "unique" bucket:
-      // mods hardcoded onto specific unique items, not a rollable tier
-      // ladder. `domain` isn't a reliable "is this a normal mod" signal
-      // (jewels' normal suffix/prefix mods are domain "misc", not "item"),
-      // so generation_type is the only safe exclusion here.
-      if (mod.generation_type === "unique") continue;
       if (mod.stats.length !== 1) {
         skippedMultiStat++;
         continue;
       }
+      const isUnique = mod.generation_type === "unique";
       const isImplicit = mod.generation_type === "implicit";
       const bucketOrder = isImplicit ? ["implicit", "explicit"] : ["explicit", "implicit"];
       const normalized = normalizeRepoeText(mod.text, mod.stats[0].min, mod.stats[0].max);
       const resolved = resolveTradeStatId(statIndex, bucketOrder, normalized);
       if (resolved) {
-        statIds.add(resolved.id);
+        (isUnique ? uniqueStatIds : statIds).add(resolved.id);
         usedStatIds.add(resolved.id);
         modIdToStatId.set(modId, resolved.id);
         matched++;
@@ -294,7 +304,22 @@ async function main() {
       }
     }
 
+    // Union in poe2db-scraped unique-item mods for every item class this
+    // category maps to — recovers uniques RePoE's own data doesn't model.
+    for (const itemClass of repoeClasses) {
+      const poe2dbUniqueIds = poe2dbUniqueStatIds.get(itemClass);
+      if (!poe2dbUniqueIds) continue;
+      for (const id of poe2dbUniqueIds) {
+        uniqueStatIds.add(id);
+        usedStatIds.add(id);
+      }
+    }
+
     eligibility[categoryId] = [...statIds].sort();
+    // Only expose a unique-only mod once it's not *also* reachable via a
+    // normal roll for this category — if it is, it already shows up
+    // without needing the toggle.
+    uniqueEligibility[categoryId] = [...uniqueStatIds].filter((id) => !statIds.has(id)).sort();
     reqFilterIdsByCategory[categoryId] = reqFilterIdsForCategory(repoeClasses, baseItems);
     // Word-bounded so this doesn't false-positive on "Azmeri Spirit(s)" —
     // an unrelated map-boss monster type, matched once Tablets were added
@@ -340,6 +365,7 @@ async function main() {
         ...residualEligibleModIdsForBase(base, residualMods),
       ]);
       for (const modId of modIds) {
+        if (mods[modId]?.generation_type === "unique") continue; // hidden by default, like eligibility above
         const statId = modIdToStatId.get(modId);
         if (statId) statIds.add(statId);
       }
@@ -492,6 +518,7 @@ async function main() {
     categories,
     stats,
     eligibility,
+    uniqueEligibility,
     eligibilityByItemName,
     itemNamesByCategory,
     itemFilters,

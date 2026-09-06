@@ -4,9 +4,11 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "fetch": "tsx src/fetch.ts && tsx src/poe2dbScrape.ts && tsx src/parse.ts",
+    "fetch": "tsx src/fetch.ts && tsx src/poe2dbScrape.ts && tsx src/poe2dbScrapeUniques.ts && tsx src/parse.ts && tsx src/checkFilters.ts",
     "scrape:poe2db": "tsx src/poe2dbScrape.ts",
-    "parse": "tsx src/parse.ts"
+    "scrape:poe2db-uniques": "tsx src/poe2dbScrapeUniques.ts",
+    "parse": "tsx src/parse.ts",
+    "check": "tsx src/checkFilters.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

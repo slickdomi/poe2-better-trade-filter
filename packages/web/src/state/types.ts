@@ -38,6 +38,14 @@ export interface FiltersData {
   stats: TradeStatEntry[];
   eligibility: Record<string, string[]>;
   /**
+   * Mods that only appear on Unique items for this category — hardcoded
+   * onto specific Uniques rather than part of the normal weighted-roll
+   * pool, so they're hidden from `availableStats` unless the "show unique
+   * modifiers" toggle is on. Never overlaps `eligibility` for the same
+   * category (a stat reachable either way is already in `eligibility`).
+   */
+  uniqueEligibility: Record<string, string[]>;
+  /**
    * Same idea as `eligibility`, scoped to one exact base item name rather
    * than a whole category. Usually identical to (a superset containing) the
    * category's own pool, since most item types share one mod pool across
@@ -136,5 +144,6 @@ export interface QuerySnapshot {
   status: StatusOption;
   buyoutPrice: BuyoutPriceValue;
   enforceAffixCap: boolean;
+  includeUniqueMods: boolean;
   steps: Step[];
 }

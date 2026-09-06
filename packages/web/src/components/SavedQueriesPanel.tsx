@@ -10,6 +10,7 @@ interface Props {
   status: SavedQuery["status"];
   buyoutPrice: SavedQuery["buyoutPrice"];
   enforceAffixCap: boolean;
+  includeUniqueMods: boolean;
   steps: SavedQuery["steps"];
   onLoad: (query: SavedQuery) => void;
 }
@@ -22,6 +23,7 @@ export function SavedQueriesPanel({
   status,
   buyoutPrice,
   enforceAffixCap,
+  includeUniqueMods,
   steps,
   onLoad,
 }: Props) {
@@ -30,7 +32,7 @@ export function SavedQueriesPanel({
   function handleSave() {
     const trimmed = name.trim();
     if (!trimmed) return;
-    saveQuery({ name: trimmed, league, status, buyoutPrice, enforceAffixCap, steps });
+    saveQuery({ name: trimmed, league, status, buyoutPrice, enforceAffixCap, includeUniqueMods, steps });
     setName("");
     onQueriesChange();
   }

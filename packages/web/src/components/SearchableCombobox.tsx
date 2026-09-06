@@ -5,6 +5,8 @@ export interface ComboboxOption {
   id: string;
   label: string;
   group?: string;
+  /** A second, independent badge (e.g. "Unique") alongside `group` — doesn't affect how options are grouped/sectioned. */
+  extraBadge?: string;
 }
 
 interface Props {
@@ -98,6 +100,7 @@ export function SearchableCombobox({
                   onClick={() => handleSelect(o)}
                 >
                   {o.group && <GroupBadge group={o.group} />}
+                  {o.extraBadge && <GroupBadge group={o.extraBadge} />}
                   <span className="combobox-option-label">{o.label}</span>
                 </button>
               ))}

@@ -29,7 +29,10 @@ export function App() {
   }
 
   function handleLoadQuery(query: QuerySnapshot) {
-    pipeline.loadSteps(query.steps, { enforceAffixCap: query.enforceAffixCap });
+    pipeline.loadSteps(query.steps, {
+      enforceAffixCap: query.enforceAffixCap,
+      includeUniqueMods: query.includeUniqueMods ?? false,
+    });
     setLeague(query.league);
     setStatus(query.status);
     setBuyoutPrice(query.buyoutPrice);
@@ -58,6 +61,7 @@ export function App() {
           // Nothing (valid) in the URL — either the very first load, or the
           // user went back past the first edit — either way, blank slate.
           pipeline.reset();
+          pipeline.setIncludeUniqueMods(false);
           setLeague(DEFAULT_LEAGUE);
           setStatus("securable");
           setBuyoutPrice({ currency: "" });
@@ -77,6 +81,7 @@ export function App() {
     status,
     buyoutPrice,
     enforceAffixCap: pipeline.enforceAffixCap,
+    includeUniqueMods: pipeline.includeUniqueMods,
     steps: pipeline.steps,
   };
   const snapshotKey = JSON.stringify(snapshot);
@@ -162,6 +167,7 @@ export function App() {
             status={status}
             buyoutPrice={buyoutPrice}
             enforceAffixCap={pipeline.enforceAffixCap}
+            includeUniqueMods={pipeline.includeUniqueMods}
             steps={pipeline.steps}
             onLoad={handleLoadQuery}
           />
@@ -187,6 +193,8 @@ export function App() {
             suffixCount={derived.suffixCount}
             enforceAffixCap={pipeline.enforceAffixCap}
             onToggleAffixCap={pipeline.setEnforceAffixCap}
+            includeUniqueMods={pipeline.includeUniqueMods}
+            onToggleUniqueMods={pipeline.setIncludeUniqueMods}
             onAdd={pipeline.addStat}
             onRemove={pipeline.removeStat}
             onRangeChange={pipeline.updateStatRange}

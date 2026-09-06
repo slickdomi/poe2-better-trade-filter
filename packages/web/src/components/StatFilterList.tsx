@@ -1,17 +1,19 @@
 import { useState, type DragEvent } from "react";
-import type { FiltersData, StatSectionType, TradeStatEntry } from "../state/types";
-import { DEFAULT_SECTION_ID, type DerivedStatFilter, type DerivedStatSection } from "../state/derive";
+import type { FiltersData, StatSectionType } from "../state/types";
+import { DEFAULT_SECTION_ID, type DerivedAvailableStat, type DerivedStatFilter, type DerivedStatSection } from "../state/derive";
 import { SearchableCombobox } from "./SearchableCombobox";
 import { GroupBadge } from "./GroupBadge";
 
 interface Props {
-  availableStats: TradeStatEntry[];
+  availableStats: DerivedAvailableStat[];
   statSections: DerivedStatSection[];
   categories: FiltersData["categories"];
   prefixCount: number;
   suffixCount: number;
   enforceAffixCap: boolean;
   onToggleAffixCap: (enforce: boolean) => void;
+  includeUniqueMods: boolean;
+  onToggleUniqueMods: (include: boolean) => void;
   onAdd: (statId: string) => void;
   onRemove: (statId: string) => void;
   onRangeChange: (statId: string, min: number | undefined, max: number | undefined) => void;
@@ -77,6 +79,9 @@ function Legend() {
       </span>
       <span className="legend-item">
         <GroupBadge group="Fractured" /> Selectable as a fractured mod too
+      </span>
+      <span className="legend-item">
+        <GroupBadge group="Unique" /> Only rolls on Unique items
       </span>
     </div>
   );
@@ -188,6 +193,7 @@ function StatRow({
           />
           <GroupBadge group={stat.group} />
           {stat.affixType && <AffixBadge affixType={stat.affixType} />}
+          {stat.isUniqueOnly && <GroupBadge group="Unique" />}
           <div className="chosen-stat-fields">
             <input
               type="number"
@@ -264,6 +270,8 @@ export function StatFilterList({
   suffixCount,
   enforceAffixCap,
   onToggleAffixCap,
+  includeUniqueMods,
+  onToggleUniqueMods,
   onAdd,
   onRemove,
   onRangeChange,
@@ -340,8 +348,21 @@ export function StatFilterList({
           — {prefixCount}/3 prefix, {suffixCount}/3 suffix
         </span>
       </label>
+      <label className="unique-mods-toggle">
+        <input
+          type="checkbox"
+          checked={includeUniqueMods}
+          onChange={(e) => onToggleUniqueMods(e.target.checked)}
+        />
+        Show unique-only modifiers
+      </label>
       <SearchableCombobox
-        options={availableStats.map((s) => ({ id: s.id, label: s.text, group: s.group }))}
+        options={availableStats.map((s) => ({
+          id: s.id,
+          label: s.text,
+          group: s.group,
+          extraBadge: s.isUniqueOnly ? "Unique" : undefined,
+        }))}
         placeholder={availableStats.length === 0 ? "No more eligible modifiers" : "Search modifiers…"}
         clearOnSelect
         onSelect={onAdd}

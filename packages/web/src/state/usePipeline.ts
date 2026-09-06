@@ -5,9 +5,10 @@ import { DEFAULT_SECTION_ID, deriveState } from "./derive";
 export function usePipeline(data: FiltersData) {
   const [steps, setSteps] = useState<Step[]>([]);
   const [enforceAffixCap, setEnforceAffixCap] = useState(true);
+  const [includeUniqueMods, setIncludeUniqueMods] = useState(false);
   const derived = useMemo(
-    () => deriveState(steps, data, { enforceAffixCap }),
-    [steps, data, enforceAffixCap],
+    () => deriveState(steps, data, { enforceAffixCap, includeUniqueMods }),
+    [steps, data, enforceAffixCap, includeUniqueMods],
   );
 
   function selectCategory(categoryId: string) {
@@ -97,9 +98,10 @@ export function usePipeline(data: FiltersData) {
     setSteps([]);
   }
 
-  function loadSteps(newSteps: Step[], options?: { enforceAffixCap?: boolean }) {
+  function loadSteps(newSteps: Step[], options?: { enforceAffixCap?: boolean; includeUniqueMods?: boolean }) {
     setSteps(newSteps);
     if (options?.enforceAffixCap !== undefined) setEnforceAffixCap(options.enforceAffixCap);
+    if (options?.includeUniqueMods !== undefined) setIncludeUniqueMods(options.includeUniqueMods);
   }
 
   return {
@@ -107,6 +109,8 @@ export function usePipeline(data: FiltersData) {
     derived,
     enforceAffixCap,
     setEnforceAffixCap,
+    includeUniqueMods,
+    setIncludeUniqueMods,
     selectCategory,
     addStat,
     updateStatRange,

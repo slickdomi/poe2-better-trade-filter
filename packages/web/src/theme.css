@@ -61,6 +61,9 @@
   --badge-corrupted-text: #d97a7a;
   --badge-desecrated-bg: #241a2c;
   --badge-desecrated-text: #b98ed9;
+  /* PoE's own Unique-item name color, echoed here for instant recognition. */
+  --badge-unique-bg: #3a2310;
+  --badge-unique-text: #e0913f;
 
   /* Shape */
   --radius-sm: 2px;
