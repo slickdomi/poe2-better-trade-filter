@@ -66,9 +66,15 @@ function Legend() {
 function TierGroups({
   tierGroups,
   categories,
+  min,
+  max,
+  onSelectTier,
 }: {
   tierGroups: NonNullable<DerivedStatFilter["tierGroups"]>;
   categories: FiltersData["categories"];
+  min: number | undefined;
+  max: number | undefined;
+  onSelectTier: (min: number, max: number) => void;
 }) {
   return (
     <div className="tier-groups">
@@ -88,7 +94,12 @@ function TierGroups({
             </thead>
             <tbody>
               {g.tiers.map((t) => (
-                <tr key={t.tier}>
+                <tr
+                  key={t.tier}
+                  className={`tier-row${t.min === min && t.max === max ? " tier-row-active" : ""}`}
+                  title="Fill min/max with this tier's value"
+                  onClick={() => onSelectTier(t.min, t.max)}
+                >
                   <td>T{t.tier}</td>
                   <td>{t.requiredLevel}</td>
                   <td>
@@ -183,7 +194,13 @@ export function StatFilterList({
               </button>
             </div>
             {s.tierGroups && s.tierGroups.length > 0 && expandedTiers.has(s.statId) && (
-              <TierGroups tierGroups={s.tierGroups} categories={categories} />
+              <TierGroups
+                tierGroups={s.tierGroups}
+                categories={categories}
+                min={s.min}
+                max={s.max}
+                onSelectTier={(min, max) => onRangeChange(s.statId, min, max)}
+              />
             )}
           </li>
         ))}

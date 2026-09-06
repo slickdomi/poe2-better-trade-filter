@@ -337,6 +337,20 @@ section > h3:first-of-type {
   border-bottom: 1px solid var(--border);
 }
 
+.tier-row {
+  cursor: pointer;
+}
+
+.tier-row:hover td {
+  background: var(--bg-row-hover);
+}
+
+.tier-row-active td {
+  background: var(--bg-chip);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
 .affix-badge {
   font-family: var(--font-mono);
   font-size: 0.7rem;
