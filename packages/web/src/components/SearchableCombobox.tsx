@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { GroupBadge } from "./GroupBadge";
 
 export interface ComboboxOption {
   id: string;
@@ -96,7 +97,8 @@ export function SearchableCombobox({
                   className="combobox-option"
                   onClick={() => handleSelect(o)}
                 >
-                  {o.label}
+                  {o.group && <GroupBadge group={o.group} />}
+                  <span className="combobox-option-label">{o.label}</span>
                 </button>
               ))}
             </div>

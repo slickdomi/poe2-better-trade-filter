@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { TradeStatEntry } from "../state/types";
 import type { DerivedStatFilter } from "../state/derive";
 import { SearchableCombobox } from "./SearchableCombobox";
+import { GroupBadge } from "./GroupBadge";
 
 interface Props {
   availableStats: TradeStatEntry[];
@@ -13,10 +14,6 @@ interface Props {
   onAdd: (statId: string) => void;
   onRemove: (statId: string) => void;
   onRangeChange: (statId: string, min: number | undefined, max: number | undefined) => void;
-}
-
-function GroupBadge({ group }: { group: string }) {
-  return <span className={`group-badge group-${group.toLowerCase()}`}>{group}</span>;
 }
 
 function AffixBadge({ affixType }: { affixType: NonNullable<DerivedStatFilter["affixType"]> }) {
