@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import filtersJson from "../data/filters.json";
-import type { BuyoutPriceValue, FiltersData, StatusOption } from "../state/types";
+import type { BuyoutPriceValue, FiltersData, QuerySnapshot, StatusOption } from "../state/types";
 import { usePipeline } from "../state/usePipeline";
 import { CategoryPicker } from "../components/CategoryPicker";
 import { StatFilterList } from "../components/StatFilterList";
@@ -10,13 +10,15 @@ import { PipelineTrail } from "../components/PipelineTrail";
 import { TradeLinkButton } from "../components/TradeLinkButton";
 import { SearchableCombobox } from "../components/SearchableCombobox";
 import { SavedQueriesPanel } from "../components/SavedQueriesPanel";
-import { listSavedQueries, type SavedQuery } from "../lib/savedQueries";
+import { listSavedQueries } from "../lib/savedQueries";
+import { pushQueryToHistory, readSharedQuery } from "../lib/shareUrl";
 
 const data = filtersJson as FiltersData;
+const DEFAULT_LEAGUE = data.leagues[0]?.id ?? "Standard";
 
 export function App() {
   const pipeline = usePipeline(data);
-  const [league, setLeague] = useState(data.leagues[0]?.id ?? "Standard");
+  const [league, setLeague] = useState(DEFAULT_LEAGUE);
   const [status, setStatus] = useState<StatusOption>("securable");
   const [buyoutPrice, setBuyoutPrice] = useState<BuyoutPriceValue>({ currency: "" });
   const [savedQueries, setSavedQueries] = useState(listSavedQueries);
@@ -26,15 +28,73 @@ export function App() {
     setSavedQueries(listSavedQueries());
   }
 
-  function handleLoadQuery(query: SavedQuery) {
+  function handleLoadQuery(query: QuerySnapshot) {
     pipeline.loadSteps(query.steps, { enforceAffixCap: query.enforceAffixCap });
     setLeague(query.league);
     setStatus(query.status);
     setBuyoutPrice(query.buyoutPrice);
   }
 
+  // The next two effects keep the URL and browser history in sync with app
+  // state, in both directions:
+  //  - state -> URL: whenever the query changes, push a new history entry
+  //    encoding it (below), so the address bar always doubles as a share
+  //    link and back/forward step through the edit history.
+  //  - URL -> state: on first load (a shared link) and on every back/forward
+  //    (popstate), decode whatever the URL says now and load it into state.
+  // `skipNextPushRef` is what keeps these from fighting each other — a load
+  // triggered by this effect would otherwise immediately trigger the other
+  // effect to push yet another (redundant) history entry for the state we
+  // just navigated to.
+  const skipNextPushRef = useRef(true);
+
+  useEffect(() => {
+    function syncFromLocation() {
+      skipNextPushRef.current = true;
+      readSharedQuery().then((shared) => {
+        if (shared) {
+          handleLoadQuery(shared);
+        } else {
+          // Nothing (valid) in the URL — either the very first load, or the
+          // user went back past the first edit — either way, blank slate.
+          pipeline.reset();
+          setLeague(DEFAULT_LEAGUE);
+          setStatus("securable");
+          setBuyoutPrice({ currency: "" });
+        }
+      });
+    }
+    syncFromLocation();
+    window.addEventListener("popstate", syncFromLocation);
+    return () => window.removeEventListener("popstate", syncFromLocation);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const categoryStepIndex = pipeline.steps.findIndex((s) => s.kind === "category");
   const leagueText = data.leagues.find((l) => l.id === league)?.text ?? league;
+  const snapshot: QuerySnapshot = {
+    league,
+    status,
+    buyoutPrice,
+    enforceAffixCap: pipeline.enforceAffixCap,
+    steps: pipeline.steps,
+  };
+  const snapshotKey = JSON.stringify(snapshot);
+
+  // Debounced so rapid-fire changes (typing a min/max value, dragging a
+  // stat) collapse into one history entry once things settle, rather than
+  // pushing on every keystroke and making back/forward useless.
+  useEffect(() => {
+    if (skipNextPushRef.current) {
+      skipNextPushRef.current = false;
+      return;
+    }
+    const timeout = setTimeout(() => {
+      pushQueryToHistory(snapshot);
+    }, 600);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [snapshotKey]);
 
   return (
     <main>
@@ -121,7 +181,7 @@ export function App() {
 
           <StatFilterList
             availableStats={derived.availableStats}
-            chosenStats={derived.chosenStats}
+            statSections={derived.statSections}
             categories={data.categories}
             prefixCount={derived.prefixCount}
             suffixCount={derived.suffixCount}
@@ -130,6 +190,11 @@ export function App() {
             onAdd={pipeline.addStat}
             onRemove={pipeline.removeStat}
             onRangeChange={pipeline.updateStatRange}
+            onAddSection={pipeline.addStatSection}
+            onUpdateSection={pipeline.updateStatSection}
+            onRemoveSection={pipeline.removeStatSection}
+            onMoveStat={pipeline.moveStatToSection}
+            onWeightChange={pipeline.updateStatWeight}
           />
         </div>
       </div>

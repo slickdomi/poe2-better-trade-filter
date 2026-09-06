@@ -1,14 +1,9 @@
-import type { BuyoutPriceValue, StatusOption, Step } from "../state/types";
+import type { QuerySnapshot } from "../state/types";
 
-export interface SavedQuery {
+export interface SavedQuery extends QuerySnapshot {
   id: string;
   name: string;
   savedAt: string;
-  league: string;
-  status: StatusOption;
-  buyoutPrice: BuyoutPriceValue;
-  enforceAffixCap: boolean;
-  steps: Step[];
 }
 
 const STORAGE_KEY = "poe2-better-trade:saved-queries";
@@ -45,14 +40,7 @@ export function listSavedQueries(): SavedQuery[] {
   return readAll().sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }
 
-export function saveQuery(input: {
-  name: string;
-  league: string;
-  status: StatusOption;
-  buyoutPrice: BuyoutPriceValue;
-  enforceAffixCap: boolean;
-  steps: Step[];
-}): SavedQuery {
+export function saveQuery(input: QuerySnapshot & { name: string }): SavedQuery {
   const query: SavedQuery = {
     id: crypto.randomUUID(),
     name: input.name,

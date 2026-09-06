@@ -1,5 +1,6 @@
 import type { DerivedState } from "../state/derive";
 import type { BuyoutPriceValue, MiscFilterGroup, StatusOption } from "../state/types";
+import { gzipBase64Url } from "./gzipBase64";
 
 const TRADE_GROUP_KEY: Record<MiscFilterGroup, string> = {
   itemFilters: "type_filters",
@@ -7,6 +8,41 @@ const TRADE_GROUP_KEY: Record<MiscFilterGroup, string> = {
   reqFilters: "req_filters",
   miscFilters: "misc_filters",
 };
+
+/**
+ * Our `StatSectionType` values are deliberately the trade API's own literal
+ * "type" strings (confirmed against the trade site's stat-filter
+ * documentation and the query-building code of public trade tools —
+ * awakened-poe-trade, PoE_Weighted_Search — not a decoded share link like
+ * the rest of this file, since these boxes aren't reachable from the
+ * default query this app starts with), so no translation table is needed
+ * here — the internal type is sent through as-is.
+ */
+const WEIGHTED_TYPES = new Set<DerivedState["statSections"][number]["type"]>(["weight", "weight2"]);
+
+function buildStatGroups(derived: DerivedState) {
+  return derived.statSections
+    .filter((section) => section.isDefault || section.stats.length > 0)
+    .map((section) => {
+      const isWeighted = WEIGHTED_TYPES.has(section.type);
+      const filters = section.stats.map((s) => {
+        const value: { min?: number; max?: number; weight?: number } = {};
+        if (s.min !== undefined) value.min = s.min;
+        if (s.max !== undefined) value.max = s.max;
+        if (isWeighted && s.weight !== undefined) value.weight = s.weight;
+        return { id: s.statId, ...(Object.keys(value).length > 0 ? { value } : {}) };
+      });
+
+      const group: Record<string, unknown> = { type: section.type, filters };
+      if (section.type === "count" || isWeighted) {
+        const value: { min?: number; max?: number } = {};
+        if (section.min !== undefined) value.min = section.min;
+        if (section.max !== undefined) value.max = section.max;
+        group.value = value;
+      }
+      return group;
+    });
+}
 
 /**
  * The official trade site encodes an entire search directly in the URL path
@@ -50,30 +86,12 @@ export function buildTradeQueryPayload(
 
   const payload: Record<string, unknown> = {
     status: { option: status },
-    stats: [
-      {
-        type: "and",
-        filters: derived.chosenStats.map((s) => {
-          const value: { min?: number; max?: number } = {};
-          if (s.min !== undefined) value.min = s.min;
-          if (s.max !== undefined) value.max = s.max;
-          return { id: s.statId, ...(Object.keys(value).length > 0 ? { value } : {}) };
-        }),
-      },
-    ],
+    stats: buildStatGroups(derived),
     filters,
   };
   if (derived.chosenItemName) payload.type = derived.chosenItemName;
 
   return payload;
-}
-
-async function gzipBase64Url(json: string): Promise<string> {
-  const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
-  const buf = await new Response(stream).arrayBuffer();
-  let binary = "";
-  for (const byte of new Uint8Array(buf)) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export async function buildTradeUrl(

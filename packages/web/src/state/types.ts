@@ -50,9 +50,29 @@ export interface FiltersData {
 export type MiscFilterGroup = "itemFilters" | "equipmentFilters" | "reqFilters" | "miscFilters";
 export type MiscFilterValue = { option: string } | { min?: number; max?: number };
 
+/**
+ * Mirrors the trade API's stat-group boolean modes (these are literally the
+ * wire values the API's own "type" field takes, confirmed against the trade
+ * site's own stat-filter documentation and public trade-tool source):
+ *  - "and": every filter must match — the always-present default section.
+ *  - "not": none of the filters may match.
+ *  - "count": at least/most N of the filters must match (the section's
+ *    min/max), rather than requiring every one of them.
+ *  - "if": each filter is optional, but if the item does have it, its value
+ *    must still fall within that filter's own min/max.
+ *  - "weight": a per-filter weighted sum must fall within the section's
+ *    min/max — and each filter is *also* individually capped as though its
+ *    own value alone made up the whole sum (the original, stricter version).
+ *  - "weight2": same weighted-sum idea, without that individual cap — an
+ *    item can pass on a strong single stat even if a lesser-weighted one
+ *    would have failed alone.
+ */
+export type StatSectionType = "and" | "count" | "weight" | "weight2" | "not" | "if";
+
 export type Step =
   | { kind: "category"; categoryId: string }
-  | { kind: "stat"; statId: string; min?: number; max?: number }
+  | { kind: "stat"; statId: string; sectionId?: string; min?: number; max?: number; weight?: number }
+  | { kind: "statSection"; sectionId: string; type: StatSectionType; min?: number; max?: number }
   | { kind: "itemName"; name: string }
   | { kind: "misc"; group: MiscFilterGroup; filterId: string; value: MiscFilterValue };
 
@@ -95,4 +115,17 @@ export interface BuyoutPriceValue {
   currency: string;
   min?: number;
   max?: number;
+}
+
+/**
+ * Everything needed to reproduce a search exactly — the same bundle used by
+ * both a saved query (see `SavedQuery`, which extends this with an id/name)
+ * and a shareable link (see `lib/shareUrl.ts`).
+ */
+export interface QuerySnapshot {
+  league: string;
+  status: StatusOption;
+  buyoutPrice: BuyoutPriceValue;
+  enforceAffixCap: boolean;
+  steps: Step[];
 }

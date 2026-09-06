@@ -67,19 +67,6 @@ main {
   width: 4rem;
 }
 
-.status-select select {
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: inherit;
-  font: inherit;
-  padding: 0.3rem 0.4rem;
-}
-
-.status-select select:hover {
-  border-color: var(--border-strong);
-}
-
 @media (max-width: 900px) {
   .layout {
     grid-template-columns: 1fr;
@@ -261,8 +248,28 @@ section > h3:first-of-type {
 
 .chosen-stat-row {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.chosen-stat-controls {
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
+  width: 100%;
+}
+
+/* Drag handle + badges stay pinned left; everything interactive (the
+   min/max/weight fields, group picker, Tiers/Remove buttons) bunches up
+   against the right edge instead. */
+.chosen-stat-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
+  margin-left: auto;
 }
 
 .group-badge {
@@ -401,12 +408,198 @@ section > h3:first-of-type {
   color: var(--text-dim);
 }
 
+.affix-cap-scope {
+  font-size: 0.75rem;
+  color: var(--text-faint);
+}
+
 .chosen-stats .stat-text {
-  flex: 1;
+  color: var(--text);
 }
 
 .chosen-stats input[type="number"] {
   width: 4.5rem;
+}
+
+.stat-section {
+  margin-top: 1rem;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+/* Left-edge accent by boolean mode, so a query's shape reads at a glance
+   without having to read every group's dropdown. */
+.stat-section-count {
+  border-left-color: var(--accent);
+}
+
+.stat-section-weight,
+.stat-section-weight2 {
+  border-left-color: var(--badge-desecrated-text);
+}
+
+.stat-section-not {
+  border-left-color: var(--danger);
+}
+
+.stat-section-if {
+  border-left-color: var(--success);
+}
+
+.stat-section-drag-over {
+  border-color: var(--accent);
+  background: var(--bg-row-hover);
+}
+
+.stat-section-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border);
+}
+
+.stat-section-title {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.stat-section-header select,
+.stat-section-header button {
+  box-sizing: border-box;
+  height: 2.1rem;
+}
+
+.stat-section-header button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-section-header select {
+  font-size: 0.85rem;
+}
+
+.stat-section-value {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+.stat-section-value input[type="number"] {
+  width: 4.5rem;
+}
+
+.stat-section-header button {
+  margin-left: auto;
+}
+
+.stat-section-hint {
+  margin: 0;
+  padding: 0.4rem 0.75rem 0;
+  font-size: 0.8rem;
+}
+
+.stat-section-empty {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+}
+
+.stat-section .chosen-stats {
+  margin-top: 0;
+  padding: 0 0.75rem;
+}
+
+.stat-section .chosen-stats li:last-child {
+  border-bottom: none;
+}
+
+.stat-weight-input {
+  width: 4rem;
+}
+
+.stat-section-select {
+  box-sizing: border-box;
+  height: 2.1rem;
+  font-size: 0.8rem;
+  max-width: 10.5rem;
+}
+
+/* A 2x3 dot grid drawn with box-shadow, rather than a Unicode glyph whose
+   grip-icon candidates (⠿, ⣿, ⋮⋮) render inconsistently across fonts. */
+.drag-handle {
+  flex: none;
+  position: relative;
+  width: 0.55rem;
+  height: 0.9rem;
+  margin-right: 0.1rem;
+  cursor: grab;
+}
+
+.drag-handle::before {
+  content: "";
+  position: absolute;
+  top: 0.05rem;
+  left: 0.05rem;
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  box-shadow:
+    0 0.3rem 0 var(--text-faint),
+    0 0.6rem 0 var(--text-faint),
+    0.3rem 0 0 var(--text-faint),
+    0.3rem 0.3rem 0 var(--text-faint),
+    0.3rem 0.6rem 0 var(--text-faint);
+}
+
+.drag-handle:hover::before {
+  background: var(--text-dim);
+  box-shadow:
+    0 0.3rem 0 var(--text-dim),
+    0 0.6rem 0 var(--text-dim),
+    0.3rem 0 0 var(--text-dim),
+    0.3rem 0.3rem 0 var(--text-dim),
+    0.3rem 0.6rem 0 var(--text-dim);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.chosen-stat-dragging {
+  opacity: 0.4;
+}
+
+.add-section-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.add-section-row select,
+.add-section-row button {
+  box-sizing: border-box;
+  height: 2.1rem;
+}
+
+.add-section-row button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.add-section-row select {
+  font-size: 0.85rem;
 }
 
 /* Pipeline trail ------------------------------------------------------------ */
@@ -582,7 +775,8 @@ button:disabled {
 }
 
 input[type="number"],
-input[type="text"] {
+input[type="text"],
+select {
   background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -592,12 +786,14 @@ input[type="text"] {
 }
 
 input[type="number"]:hover,
-input[type="text"]:hover {
+input[type="text"]:hover,
+select:hover {
   border-color: var(--border-strong);
 }
 
 input[type="number"]:focus,
-input[type="text"]:focus {
+input[type="text"]:focus,
+select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 1px var(--accent);

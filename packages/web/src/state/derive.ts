@@ -3,6 +3,7 @@ import type {
   FiltersData,
   MiscFilterGroup,
   MiscFilterValue,
+  StatSectionType,
   StatTierGroup,
   Step,
   TradeStatEntry,
@@ -26,6 +27,20 @@ export interface DerivedStatFilter {
   affixType?: TradeStatEntry["affixType"];
   min?: number;
   max?: number;
+  sectionId: string;
+  weight?: number;
+}
+
+/** Every query has this implicit "all filters must match" section; it can't be renamed, retyped, or removed. */
+export const DEFAULT_SECTION_ID = "default";
+
+export interface DerivedStatSection {
+  id: string;
+  type: StatSectionType;
+  isDefault: boolean;
+  min?: number;
+  max?: number;
+  stats: DerivedStatFilter[];
 }
 
 export interface DeriveOptions {
@@ -46,6 +61,7 @@ export interface DerivedState {
   availableCategories: { id: string; text: string }[];
   availableStats: TradeStatEntry[];
   chosenStats: DerivedStatFilter[];
+  statSections: DerivedStatSection[];
   chosenItemName?: string;
   availableItemNames: string[];
   relevantReqFilters: FilterDef[];
@@ -127,10 +143,15 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
       });
   const possibleCategoryIds = new Set(compatibleCategories.map((c) => c.id));
 
+  const sectionSteps = steps.filter((s): s is Step & { kind: "statSection" } => s.kind === "statSection");
+  const sectionIdSet = new Set(sectionSteps.map((s) => s.sectionId));
+
   const chosenStats: DerivedStatFilter[] = steps
     .filter((s): s is Step & { kind: "stat" } => s.kind === "stat")
     .map((s) => {
       const stat = statsById.get(s.statId);
+      // A section reference can go stale if its defining step was removed — fall back to the default section rather than dropping the stat.
+      const sectionId = s.sectionId && sectionIdSet.has(s.sectionId) ? s.sectionId : DEFAULT_SECTION_ID;
       return {
         statId: s.statId,
         text: stat?.text ?? s.statId,
@@ -139,11 +160,33 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
         affixType: stat?.affixType,
         min: s.min,
         max: s.max,
+        sectionId,
+        weight: s.weight,
       };
     });
 
-  const prefixCount = chosenStats.filter((s) => s.affixType === "prefix").length;
-  const suffixCount = chosenStats.filter((s) => s.affixType === "suffix").length;
+  const statSections: DerivedStatSection[] = [
+    { id: DEFAULT_SECTION_ID, type: "and", isDefault: true, stats: [] },
+    ...sectionSteps.map((s) => ({
+      id: s.sectionId,
+      type: s.type,
+      isDefault: false,
+      min: s.min,
+      max: s.max,
+      stats: [] as DerivedStatFilter[],
+    })),
+  ];
+  const sectionById = new Map(statSections.map((sec) => [sec.id, sec]));
+  for (const stat of chosenStats) {
+    sectionById.get(stat.sectionId)!.stats.push(stat);
+  }
+
+  // Only the default (AND) group represents mods actually rolled on the item at
+  // once — a stat parked in a Count/Not/If/Weighted group isn't necessarily
+  // simultaneously present, so it shouldn't count against the 3/3 affix cap.
+  const defaultGroupStats = chosenStats.filter((s) => s.sectionId === DEFAULT_SECTION_ID);
+  const prefixCount = defaultGroupStats.filter((s) => s.affixType === "prefix").length;
+  const suffixCount = defaultGroupStats.filter((s) => s.affixType === "suffix").length;
 
   const chosenStatIdSet = new Set(chosenStatIds);
   const eligibleStatIdUnion = new Set(compatibleCategories.flatMap((c) => data.eligibility[c.id] ?? []));
@@ -184,6 +227,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
     availableCategories: compatibleCategories,
     availableStats,
     chosenStats,
+    statSections,
     chosenItemName: itemNameStep?.name,
     availableItemNames,
     relevantReqFilters,

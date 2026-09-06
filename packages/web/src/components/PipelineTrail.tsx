@@ -14,6 +14,8 @@ function describeStep(step: Step, data: FiltersData): string {
       return data.categories.find((c) => c.id === step.categoryId)?.text ?? step.categoryId;
     case "stat":
       return data.stats.find((s) => s.id === step.statId)?.text ?? step.statId;
+    case "statSection":
+      return `${step.type.toUpperCase()} group`;
     case "itemName":
       return step.name;
     case "misc": {
