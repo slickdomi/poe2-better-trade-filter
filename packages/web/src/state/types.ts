@@ -8,6 +8,14 @@ export interface StatTier {
 export interface StatTierGroup {
   source: string;
   tiers: StatTier[];
+  /**
+   * Present only when this source's tier ladder actually differs by item
+   * type (e.g. a stat shared by an armour-only mod pool and an unrelated
+   * weapon-only mod pool that happen to render with the same trade stat
+   * id). When set, restrict display to a chosen category among these ids;
+   * when absent, the group applies regardless of category.
+   */
+  categoryIds?: string[];
 }
 
 export interface TradeStatEntry {

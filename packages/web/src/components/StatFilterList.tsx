@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { TradeStatEntry } from "../state/types";
+import type { FiltersData, TradeStatEntry } from "../state/types";
 import type { DerivedStatFilter } from "../state/derive";
 import { SearchableCombobox } from "./SearchableCombobox";
 import { GroupBadge } from "./GroupBadge";
@@ -7,6 +7,7 @@ import { GroupBadge } from "./GroupBadge";
 interface Props {
   availableStats: TradeStatEntry[];
   chosenStats: DerivedStatFilter[];
+  categories: FiltersData["categories"];
   prefixCount: number;
   suffixCount: number;
   enforceAffixCap: boolean;
@@ -14,6 +15,19 @@ interface Props {
   onAdd: (statId: string) => void;
   onRemove: (statId: string) => void;
   onRangeChange: (statId: string, min: number | undefined, max: number | undefined) => void;
+}
+
+/**
+ * `categoryIds` mixes a source's specific item-type ids (e.g. "armour.helmet")
+ * with the broader "Any X" umbrella id (e.g. "armour") whenever the pool is
+ * also reachable while that umbrella category is chosen unnarrowed — showing
+ * both would just read as "Any Armour, Helmet", so prefer the specific ones
+ * once at least one is present.
+ */
+function describeCategoryScope(ids: string[], categories: FiltersData["categories"]): string {
+  const specific = ids.filter((id) => id.includes("."));
+  const idsToShow = specific.length > 0 ? specific : ids;
+  return idsToShow.map((id) => categories.find((c) => c.id === id)?.text ?? id).join(", ");
 }
 
 function AffixBadge({ affixType }: { affixType: NonNullable<DerivedStatFilter["affixType"]> }) {
@@ -49,12 +63,21 @@ function Legend() {
  * than merged into one, matching the official site's per-source tooltip
  * sections.
  */
-function TierGroups({ tierGroups }: { tierGroups: NonNullable<DerivedStatFilter["tierGroups"]> }) {
+function TierGroups({
+  tierGroups,
+  categories,
+}: {
+  tierGroups: NonNullable<DerivedStatFilter["tierGroups"]>;
+  categories: FiltersData["categories"];
+}) {
   return (
     <div className="tier-groups">
-      {tierGroups.map((g) => (
-        <div key={g.source} className="tier-group">
-          <div className="tier-group-source">{g.source}</div>
+      {tierGroups.map((g, i) => (
+        <div key={`${g.source}-${i}`} className="tier-group">
+          <div className="tier-group-source">
+            {g.source}
+            {g.categoryIds && <span className="tier-group-scope"> — {describeCategoryScope(g.categoryIds, categories)}</span>}
+          </div>
           <table className="tier-table">
             <thead>
               <tr>
@@ -84,6 +107,7 @@ function TierGroups({ tierGroups }: { tierGroups: NonNullable<DerivedStatFilter[
 export function StatFilterList({
   availableStats,
   chosenStats,
+  categories,
   prefixCount,
   suffixCount,
   enforceAffixCap,
@@ -159,7 +183,7 @@ export function StatFilterList({
               </button>
             </div>
             {s.tierGroups && s.tierGroups.length > 0 && expandedTiers.has(s.statId) && (
-              <TierGroups tierGroups={s.tierGroups} />
+              <TierGroups tierGroups={s.tierGroups} categories={categories} />
             )}
           </li>
         ))}

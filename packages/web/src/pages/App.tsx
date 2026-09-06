@@ -122,6 +122,7 @@ export function App() {
           <StatFilterList
             availableStats={derived.availableStats}
             chosenStats={derived.chosenStats}
+            categories={data.categories}
             prefixCount={derived.prefixCount}
             suffixCount={derived.suffixCount}
             enforceAffixCap={pipeline.enforceAffixCap}

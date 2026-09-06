@@ -96,24 +96,69 @@ interface TierInfo {
   affixType?: "prefix" | "suffix";
 }
 
-function buildTierGroups(mods: RepoeMod[]): TierInfo {
-  const bySource = new Map<string, RepoeMod[]>();
-  for (const m of mods) {
-    const source = sourceForMod(m);
-    const list = bySource.get(source);
-    if (list) list.push(m);
-    else bySource.set(source, [m]);
+/**
+ * Some trade stats are a single displayed id/text shared by more than one
+ * unrelated RePoE mod pool — e.g. "+# to Level of all Minion Skills" is a
+ * 3-tier armour-only ladder (max +3) AND a completely separate 5-tier
+ * weapon-only ladder (max +5), which happen to share the same mod `groups[0]`
+ * (so `buildTiersForGroup`'s own dedupe can't tell them apart) and the same
+ * trade stat id (so naively merging every matching mod produces a
+ * Frankenstein ladder no single item can actually roll — e.g. showing a
+ * Helmet a req-level-78 weapon-only tier). `modIdsByCategory` (every
+ * category's own eligible mod ids for this stat) lets us split a source's
+ * mods into the distinct subsets different categories actually resolve to,
+ * so each subset gets its own tier ladder scoped to just those categories.
+ */
+function buildTierGroups(modsForStat: Map<string, RepoeMod>, modIdsByCategory: Map<string, Set<string>>): TierInfo {
+  const modIdsBySource = new Map<string, string[]>();
+  for (const [modId, mod] of modsForStat) {
+    const source = sourceForMod(mod);
+    const list = modIdsBySource.get(source);
+    if (list) list.push(modId);
+    else modIdsBySource.set(source, [modId]);
   }
 
   const tierGroups: StatTierGroup[] = [];
   let affixType: "prefix" | "suffix" | undefined;
-  for (const [source, sourceMods] of bySource) {
-    const { tiers, generationType } = buildTiersForGroup(sourceMods);
-    tierGroups.push({ source, tiers });
+
+  function addGroup(source: string, modIds: string[], categoryIds?: string[]) {
+    const { tiers, generationType } = buildTiersForGroup(modIds.map((id) => modsForStat.get(id)!));
+    tierGroups.push({ source, tiers, ...(categoryIds ? { categoryIds } : {}) });
     // Desecrated mods still occupy a normal prefix/suffix slot (they just
     // come from a different source), so they count toward the 3/3 cap too.
     if ((source === "Base" || source === "Desecrated") && (generationType === "prefix" || generationType === "suffix")) {
       affixType = generationType;
+    }
+  }
+
+  for (const [source, modIdsForSource] of modIdsBySource) {
+    const sourceModIdSet = new Set(modIdsForSource);
+    // Distinct subsets of this source's mods that different categories
+    // resolve to — same subset key across categories means one shared
+    // ladder; different keys mean genuinely different pools worth splitting.
+    const subsetKeyToModIds = new Map<string, string[]>();
+    const subsetKeyToCategories = new Map<string, string[]>();
+    for (const [categoryId, catModIds] of modIdsByCategory) {
+      const relevant = modIdsForSource.filter((id) => catModIds.has(id));
+      if (relevant.length === 0) continue;
+      const key = [...relevant].sort().join(",");
+      if (!subsetKeyToModIds.has(key)) subsetKeyToModIds.set(key, relevant);
+      const list = subsetKeyToCategories.get(key);
+      if (list) list.push(categoryId);
+      else subsetKeyToCategories.set(key, [categoryId]);
+    }
+
+    if (subsetKeyToModIds.size <= 1) {
+      // No category-level split needed — either every category resolving
+      // to this source shares the same mods, or this source isn't
+      // category-tracked at all (untouched by the loop above, e.g. because
+      // it only reached statCategoryModIds via a path that doesn't track
+      // per-category — falls back to the full, un-split source pool).
+      addGroup(source, [...sourceModIdSet]);
+    } else {
+      for (const [key, modIds] of subsetKeyToModIds) {
+        addGroup(source, modIds, subsetKeyToCategories.get(key)!.sort());
+      }
     }
   }
   tierGroups.sort((a, b) => SOURCE_ORDER.indexOf(a.source) - SOURCE_ORDER.indexOf(b.source));
@@ -157,10 +202,14 @@ async function main() {
   }
 
   const usedStatIds = new Set<string>();
-  // Tiers are a property of the stat itself, not of a category, so we
-  // dedupe by modId across every category that resolves to the same trade
-  // stat id.
+  // The mod pool behind a stat is mostly shared across every category that
+  // resolves to it, so mods are deduped by modId globally here...
   const statIdToMods = new Map<string, Map<string, RepoeMod>>();
+  // ...but a handful of stats are actually two+ unrelated item-type-specific
+  // pools sharing one displayed id/text (see buildTierGroups' doc comment),
+  // so this also tracks exactly which mod ids each individual category
+  // resolves to, letting buildTierGroups split those cases back apart.
+  const statCategoryModIds = new Map<string, Map<string, Set<string>>>();
   const eligibility: Record<string, string[]> = {};
   const reqFilterIdsByCategory: Record<string, string[]> = {};
   const equipmentFilterIdsByCategory: Record<string, string[]> = {};
@@ -212,6 +261,18 @@ async function main() {
           statIdToMods.set(resolved.id, modsForStat);
         }
         modsForStat.set(modId, mod);
+
+        let modIdsByCategory = statCategoryModIds.get(resolved.id);
+        if (!modIdsByCategory) {
+          modIdsByCategory = new Map();
+          statCategoryModIds.set(resolved.id, modIdsByCategory);
+        }
+        let categoryModIdSet = modIdsByCategory.get(categoryId);
+        if (!categoryModIdSet) {
+          categoryModIdSet = new Set();
+          modIdsByCategory.set(categoryId, categoryModIdSet);
+        }
+        categoryModIdSet.add(modId);
       } else {
         unmatched++;
       }
@@ -249,7 +310,7 @@ async function main() {
       .map((e) => {
         const modsForStat = statIdToMods.get(e.id);
         const { tierGroups, affixType } = modsForStat
-          ? buildTierGroups([...modsForStat.values()])
+          ? buildTierGroups(modsForStat, statCategoryModIds.get(e.id) ?? new Map())
           : { tierGroups: [], affixType: undefined };
         return {
           id: e.id,
@@ -271,9 +332,11 @@ async function main() {
   const desecratedAdditionsByCategory: Record<string, string[]> = {};
   for (const stat of [...stats]) {
     if (!stat.tierGroups) continue;
-    const desecratedIndex = stat.tierGroups.findIndex((g) => g.source === "Desecrated");
-    if (desecratedIndex === -1) continue;
-    const [desecratedGroup] = stat.tierGroups.splice(desecratedIndex, 1);
+    // Almost always exactly one, but split like "Base" can be (see
+    // buildTierGroups), so pull every "Desecrated" group, not just the first.
+    const desecratedGroups = stat.tierGroups.filter((g) => g.source === "Desecrated");
+    if (desecratedGroups.length === 0) continue;
+    stat.tierGroups = stat.tierGroups.filter((g) => g.source !== "Desecrated");
     if (stat.tierGroups.length === 0) stat.tierGroups = undefined;
 
     const desecratedEntry = desecratedBucket?.get(normalizeTradeText(stat.text));
@@ -284,7 +347,7 @@ async function main() {
       text: desecratedEntry.text,
       type: desecratedEntry.type,
       group: "Desecrated",
-      tierGroups: [desecratedGroup],
+      tierGroups: desecratedGroups,
       affixType: stat.affixType,
     });
     for (const [categoryId, ids] of Object.entries(eligibility)) {
@@ -305,8 +368,11 @@ async function main() {
   const fracturedBucket = statIndex.get("fractured");
   const fracturedAdditionsByCategory: Record<string, string[]> = {};
   for (const stat of [...stats]) {
-    const baseGroup = stat.tierGroups?.find((g) => g.source === "Base");
-    if (!baseGroup) continue;
+    // A stat's "Base" pool can itself be split into item-type-scoped
+    // variants (see buildTierGroups) — carry every variant over, each still
+    // scoped to the same categoryIds, so Fractured doesn't collapse them.
+    const baseGroups = stat.tierGroups?.filter((g) => g.source === "Base") ?? [];
+    if (baseGroups.length === 0) continue;
     const fracturedEntry = fracturedBucket?.get(normalizeTradeText(stat.text));
     if (!fracturedEntry) continue;
 
@@ -315,7 +381,11 @@ async function main() {
       text: fracturedEntry.text,
       type: fracturedEntry.type,
       group: "Fractured",
-      tierGroups: [{ source: "Fractured", tiers: baseGroup.tiers }],
+      tierGroups: baseGroups.map((g) => ({
+        source: "Fractured",
+        tiers: g.tiers,
+        ...(g.categoryIds ? { categoryIds: g.categoryIds } : {}),
+      })),
       affixType: stat.affixType,
     });
     for (const [categoryId, ids] of Object.entries(eligibility)) {

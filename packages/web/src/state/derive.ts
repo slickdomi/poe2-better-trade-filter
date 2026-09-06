@@ -1,4 +1,12 @@
-import type { FilterDef, FiltersData, MiscFilterGroup, MiscFilterValue, Step, TradeStatEntry } from "./types";
+import type {
+  FilterDef,
+  FiltersData,
+  MiscFilterGroup,
+  MiscFilterValue,
+  StatTierGroup,
+  Step,
+  TradeStatEntry,
+} from "./types";
 
 // Plain (bare) modifiers first, source-restricted variants after — rather
 // than alphabetical, which would put "Desecrated"/"Fractured" ahead of
@@ -67,6 +75,26 @@ function narrowFilters(
 }
 
 /**
+ * Some stats' "Base" (or "Desecrated") tier ladder is really two-plus
+ * unrelated item-type-specific mod pools sharing one displayed stat (e.g.
+ * "+# to Level of all Minion Skills" is a separate, smaller-max armour pool
+ * and a separate, larger-max weapon pool) — those groups carry a
+ * `categoryIds` restriction from the data pipeline. Drop any group whose
+ * restriction doesn't overlap what's still possible, so e.g. a chosen
+ * Helmet only ever sees its own ladder, never a Weapon-only one.
+ */
+function relevantTierGroups(
+  tierGroups: StatTierGroup[] | undefined,
+  possibleCategoryIds: Set<string>,
+): StatTierGroup[] | undefined {
+  if (!tierGroups) return undefined;
+  const filtered = tierGroups.filter(
+    (g) => !g.categoryIds || g.categoryIds.some((id) => possibleCategoryIds.has(id)),
+  );
+  return filtered.length > 0 ? filtered : undefined;
+}
+
+/**
  * Pure projection of the append-only `steps` list into what the UI needs.
  * Undo is just "drop the last step" (or slice to an earlier index) — this
  * function is re-run from scratch each time, so there's no separate history
@@ -97,6 +125,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
         const eligible = data.eligibility[c.id] ?? [];
         return chosenStatIds.every((id) => eligible.includes(id));
       });
+  const possibleCategoryIds = new Set(compatibleCategories.map((c) => c.id));
 
   const chosenStats: DerivedStatFilter[] = steps
     .filter((s): s is Step & { kind: "stat" } => s.kind === "stat")
@@ -106,7 +135,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
         statId: s.statId,
         text: stat?.text ?? s.statId,
         group: stat?.group ?? "",
-        tierGroups: stat?.tierGroups,
+        tierGroups: relevantTierGroups(stat?.tierGroups, possibleCategoryIds),
         affixType: stat?.affixType,
         min: s.min,
         max: s.max,

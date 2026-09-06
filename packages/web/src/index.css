@@ -312,6 +312,11 @@ section > h3:first-of-type {
   margin-bottom: 0.2rem;
 }
 
+.tier-group-scope {
+  font-variant: normal;
+  color: var(--text);
+}
+
 .tier-table {
   margin: 0;
   border-collapse: collapse;

@@ -42,6 +42,17 @@ export interface StatTier {
 export interface StatTierGroup {
   source: string;
   tiers: StatTier[];
+  /**
+   * Present only when this source's tier ladder actually differs by item
+   * type — e.g. a shared stat/text like "+# to Level of all Minion Skills"
+   * is really two unrelated RePoE mod pools (a 3-tier armour ladder maxing
+   * at +3, a 5-tier weapon ladder maxing at +5) that just happen to render
+   * with the same trade stat id. When set, this group applies only to the
+   * listed category ids; when absent, it applies to every category the
+   * stat is eligible for (the common case — most stats' pools aren't
+   * item-type-restricted at all).
+   */
+  categoryIds?: string[];
 }
 
 export interface TradeStatEntry {
