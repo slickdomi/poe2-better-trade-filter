@@ -1,6 +1,7 @@
 {
   "name": "poe2-better-trade",
   "private": true,
+  "license": "MIT",
   "workspaces": [
     "packages/web",
     "packages/data-pipeline"

@@ -1,6 +1,7 @@
 {
   "name": "data-pipeline",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "fetch": "tsx src/fetch.ts && tsx src/poe2dbScrape.ts && tsx src/parse.ts",
