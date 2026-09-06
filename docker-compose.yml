@@ -1,0 +1,27 @@
+services:
+  web:
+    build: .
+    working_dir: /app
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+      - web_pkg_node_modules:/app/packages/web/node_modules
+      - pipeline_pkg_node_modules:/app/packages/data-pipeline/node_modules
+    ports:
+      - "5173:5173"
+    command: sh -c "npm install && npm run dev --workspace packages/web -- --host 0.0.0.0"
+
+  data-pipeline:
+    build: .
+    working_dir: /app
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+      - web_pkg_node_modules:/app/packages/web/node_modules
+      - pipeline_pkg_node_modules:/app/packages/data-pipeline/node_modules
+    command: sh -c "npm install && npm run fetch --workspace packages/data-pipeline"
+
+volumes:
+  web_node_modules:
+  web_pkg_node_modules:
+  pipeline_pkg_node_modules:

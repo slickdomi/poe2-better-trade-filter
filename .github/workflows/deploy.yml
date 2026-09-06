@@ -1,0 +1,60 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # node's bundled npm predates the `min-release-age` config this repo's
+      # .npmrc relies on (see README) — match the version pinned in Dockerfile.
+      - name: Upgrade npm
+        run: npm install -g npm@12.0.2
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `base_path` is "" when Pages is serving a custom domain (root) or
+      # "/<repo>" for the default github.io/<repo>/ URL — computing it here
+      # (rather than hardcoding one or the other) keeps the build correct
+      # whether or not a custom domain is attached later.
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      # packages/web/src/data/filters.json is committed to the repo (refreshed
+      # manually via `docker compose run data-pipeline`, not rebuilt in CI), so
+      # this only needs to build the already-checked-in data into the SPA.
+      - name: Build
+        run: npm run build --workspace packages/web -- --base=${{ steps.pages.outputs.base_path }}/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: packages/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

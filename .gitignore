@@ -1,0 +1,7 @@
+node_modules/
+dist/
+build/
+packages/data-pipeline/raw-cache/
+.DS_Store
+*.log
+*.tsbuildinfo

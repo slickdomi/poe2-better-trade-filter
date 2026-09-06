@@ -1,0 +1,523 @@
+/* ==========================================================================
+   STRUCTURE — layout, spacing, sizing. Colors/fonts/radii come from
+   theme.css's variables; this file shouldn't need hex values.
+   ========================================================================== */
+
+:root {
+  font-size: 15px;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.layout-right {
+  position: sticky;
+  top: 1.5rem;
+}
+
+/* Both columns start at the same grid row, but each panel's own top margin
+   would otherwise push its visible box down by a different amount
+   depending on what happens to be first in each column — zero it so the
+   two columns' first panels always align, regardless of order. Targets the
+   first *panel* specifically (not just the first DOM child), since
+   .trade-link-row wraps its section in a plain, marginless div. */
+.layout-left > :first-child,
+.layout-right > :first-child,
+.layout-right > :first-child section {
+  margin-top: 0;
+}
+
+.trade-link-row section {
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .layout-right {
+    position: static;
+  }
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+.league-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+}
+
+.league-select .combobox {
+  width: 220px;
+}
+
+/* Panels ----------------------------------------------------------------- */
+
+section {
+  margin: 1.25rem 0;
+  padding: 1rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+}
+
+/* Pull the heading out to the panel's edge so it reads as a full-width
+   header bar (PoE's "TYPE FILTERS" / "STAT FILTERS" style), without
+   needing a wrapper element around the rest of each section's content. */
+section > h2,
+section > h3:first-of-type {
+  margin: -1rem -1rem 1rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.95rem;
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border);
+}
+
+.category-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.category-grid button {
+  padding: 0.4rem 0.8rem;
+}
+
+/* Combobox ----------------------------------------------------------------- */
+
+.combobox {
+  position: relative;
+  width: 100%;
+}
+
+.combobox-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.45rem 0.6rem;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+}
+
+.combobox-input:hover {
+  border-color: var(--border-strong);
+}
+
+.combobox-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.combobox-list {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-panel-header);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem;
+  box-shadow: var(--shadow-panel);
+}
+
+.combobox-group-label {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  padding: 0.3rem 0.5rem 0.1rem;
+}
+
+.combobox-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.4rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+}
+
+.combobox-option:hover,
+.combobox-option:focus {
+  background: var(--bg-row-hover);
+  outline: none;
+}
+
+.combobox-empty {
+  padding: 0.5rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* Modifiers ---------------------------------------------------------------- */
+
+.chosen-stats {
+  list-style: none;
+  padding: 0;
+  margin-top: 1rem;
+}
+
+.chosen-stats li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.chosen-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.group-badge {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--radius-sm);
+  background: var(--badge-explicit-bg);
+  color: var(--badge-explicit-text);
+  white-space: nowrap;
+}
+
+.group-implicit {
+  background: var(--badge-implicit-bg);
+  color: var(--badge-implicit-text);
+}
+
+.tier-table {
+  margin: 0.4rem 0 0.8rem;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-family: var(--font-mono);
+}
+
+.tier-table th {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  color: var(--text-dim);
+}
+
+.tier-table th,
+.tier-table td {
+  padding: 0.15rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.affix-badge {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 1.2rem;
+  height: 1.2rem;
+  line-height: 1.2rem;
+  text-align: center;
+  border-radius: var(--radius-sm);
+  flex: none;
+}
+
+.affix-prefix {
+  background: var(--badge-prefix-bg);
+  color: var(--badge-prefix-text);
+}
+
+.affix-suffix {
+  background: var(--badge-suffix-bg);
+  color: var(--badge-suffix-text);
+}
+
+.stat-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin: 0.6rem 0;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.affix-cap-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin: 0.6rem 0;
+}
+
+.affix-counts {
+  color: var(--text-dim);
+}
+
+.chosen-stats .stat-text {
+  flex: 1;
+}
+
+.chosen-stats input[type="number"] {
+  width: 4.5rem;
+}
+
+/* Pipeline trail ------------------------------------------------------------ */
+
+.pipeline-trail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.pipeline-trail ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pipeline-trail ol li button {
+  background: var(--bg-chip);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.pipeline-trail ol li button:hover {
+  border-color: var(--border-strong);
+}
+
+.trail-remove {
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.pipeline-trail ol li button:hover .trail-remove {
+  color: var(--danger);
+}
+
+.hint {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.error {
+  color: var(--danger);
+}
+
+/* Buttons -------------------------------------------------------------------- */
+
+button {
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-chip);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.6rem;
+}
+
+button:hover {
+  border-color: var(--border-strong);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.trade-link-button {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+  font-size: 1.3rem;
+  padding: 1rem 1.75rem;
+  width: 100%;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+  border: 1px solid var(--accent-hover);
+  box-shadow: 0 4px 16px rgba(175, 138, 78, 0.25);
+}
+
+.trade-link-button:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.trade-link-button:disabled {
+  background: var(--bg-chip);
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+
+/* Category chip -------------------------------------------------------------- */
+
+.category-chip .chip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.chip {
+  padding: 0.3rem 0.7rem;
+  background: var(--bg-chip);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+/* Item name ------------------------------------------------------------------ */
+
+.item-name-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.item-name-row .combobox {
+  flex: 1;
+}
+
+/* Misc filters ----------------------------------------------------------------- */
+
+.misc-section {
+  margin-top: 1rem;
+}
+
+.misc-section h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem;
+  color: var(--text-dim);
+}
+
+.misc-section summary {
+  cursor: pointer;
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  font-size: 0.95rem;
+  color: var(--text-dim);
+  margin-bottom: 0.5rem;
+}
+
+.misc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.6rem;
+}
+
+.misc-field {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.misc-field label {
+  flex: 1;
+  color: var(--text);
+}
+
+.misc-field input[type="number"] {
+  width: 4rem;
+}
+
+.misc-field .combobox {
+  flex: 0 0 160px;
+}
+
+input[type="number"],
+input[type="text"] {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font: inherit;
+  padding: 0.3rem 0.4rem;
+}
+
+input[type="number"]:hover,
+input[type="text"]:hover {
+  border-color: var(--border-strong);
+}
+
+input[type="number"]:focus,
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+/* Footer ----------------------------------------------------------------- */
+
+.site-footer {
+  display: flex;
+  justify-content: center;
+  gap: 1.5rem;
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.site-footer a {
+  color: var(--text-dim);
+  text-decoration: none;
+}
+
+.site-footer a:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}

@@ -1,0 +1,8 @@
+{
+  "name": "poe2-better-trade",
+  "private": true,
+  "workspaces": [
+    "packages/web",
+    "packages/data-pipeline"
+  ]
+}

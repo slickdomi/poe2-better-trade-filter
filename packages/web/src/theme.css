@@ -1,0 +1,84 @@
+/* ==========================================================================
+   THEME — all appearance lives here: colors, fonts, radii, shadows, and
+   the badge palette. Edit the variables below (or the small skin rules
+   further down) to reskin the whole app.
+
+   `index.css` handles structure/layout only (flex/grid, spacing, sizing)
+   and consumes these variables — it shouldn't need to change for a
+   reskin. If you add a brand-new component class, prefer wiring its
+   colors to a var(--…) here rather than hardcoding a hex value there.
+   ========================================================================== */
+
+:root {
+  color-scheme: dark;
+
+  /* Fonts. PoE's own UI face (Fontin SmallCaps) isn't freely
+     redistributable, so headings approximate its look with a serif font
+     rendered in small-caps instead. */
+  --font-heading: Georgia, "Times New Roman", Cambria, serif;
+  --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Surfaces, darkest to lightest */
+  --bg-page: #0b0b0d;
+  --bg-panel: #17171a;
+  --bg-panel-header: #201f1a;
+  --bg-input: #101012;
+  --bg-input-hover: #1a1a1e;
+  --bg-row-hover: #1d1c19;
+  --bg-chip: #201f1c;
+
+  /* Borders */
+  --border: #2e2c27;
+  --border-strong: #4a463c;
+
+  /* Text */
+  --text: #d9d6c9;
+  --text-dim: #948f80;
+  --text-faint: #5f5c52;
+
+  /* Accent — PoE's signature warm gold/currency tone */
+  --accent: #af8a4e;
+  --accent-hover: #c9a563;
+  --accent-contrast: #16130c;
+
+  /* Semantic */
+  --danger: #c1584a;
+  --success: #6fae7a;
+
+  /* Stat group / affix badges */
+  --badge-prefix-bg: #17301f;
+  --badge-prefix-text: #7ed9a0;
+  --badge-suffix-bg: #33230f;
+  --badge-suffix-text: #d9a87e;
+  --badge-explicit-bg: #232320;
+  --badge-explicit-text: #b8b6a8;
+  --badge-implicit-bg: #1c2a1c;
+  --badge-implicit-text: #8ec98e;
+
+  /* Shape */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --shadow-panel: 0 10px 28px rgba(0, 0, 0, 0.55);
+
+  font-family: var(--font-body);
+}
+
+body {
+  background: var(--bg-page);
+  color: var(--text);
+}
+
+h1,
+section > h2,
+section > h3:first-of-type {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+}
+
+.misc-section h3 {
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+}
