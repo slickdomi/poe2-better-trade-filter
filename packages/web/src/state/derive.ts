@@ -189,7 +189,46 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
   const suffixCount = defaultGroupStats.filter((s) => s.affixType === "suffix").length;
 
   const chosenStatIdSet = new Set(chosenStatIds);
-  const eligibleStatIdUnion = new Set(compatibleCategories.flatMap((c) => data.eligibility[c.id] ?? []));
+  const itemNameStep = steps.find((s): s is Step & { kind: "itemName" } => s.kind === "itemName");
+  const chosenItemName = itemNameStep?.name;
+
+  /**
+   * Most categories' base items all share one mod pool, so this is just the
+   * category's own list. A handful (currently only Tablets) actually cover
+   * several disjoint pools under one trade category with no per-type
+   * sub-category to filter on — e.g. Breach and Ritual Tablets share the
+   * "Tablet" category but can't roll each other's mods. For those, narrow
+   * to whichever base names could still produce every stat chosen so far
+   * (or to the explicitly chosen one), the same way `compatibleCategories`
+   * narrows by category — so picking a Breach-only modifier makes every
+   * other available modifier Breach-compatible too, without needing a real
+   * trade-API category for "Breach Tablet".
+   */
+  let eligibleStatIdUnion: Set<string>;
+  let availableItemNames: string[];
+  if (compatibleCategories.length === 1) {
+    const categoryId = compatibleCategories[0].id;
+    const candidateNames = data.itemNamesByCategory[categoryId] ?? [];
+    const namesWithData = candidateNames.filter((n) => data.eligibilityByItemName[n]);
+    if (namesWithData.length > 0) {
+      const compatibleNames = candidateNames.filter((n) => {
+        if (chosenItemName) return n === chosenItemName;
+        const eligible = data.eligibilityByItemName[n];
+        return !eligible || chosenStatIds.every((id) => eligible.includes(id));
+      });
+      eligibleStatIdUnion = new Set(
+        compatibleNames.flatMap((n) => data.eligibilityByItemName[n] ?? data.eligibility[categoryId] ?? []),
+      );
+      availableItemNames = compatibleNames;
+    } else {
+      eligibleStatIdUnion = new Set(data.eligibility[categoryId] ?? []);
+      availableItemNames = candidateNames;
+    }
+  } else {
+    eligibleStatIdUnion = new Set(compatibleCategories.flatMap((c) => data.eligibility[c.id] ?? []));
+    availableItemNames = [];
+  }
+
   const availableStats = [...eligibleStatIdUnion]
     .filter((id) => !chosenStatIdSet.has(id))
     .map((id) => statsById.get(id))
@@ -201,9 +240,6 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
       return true;
     })
     .sort((a, b) => groupSortIndex(a.group) - groupSortIndex(b.group) || a.text.localeCompare(b.text));
-
-  const itemNameStep = steps.find((s): s is Step & { kind: "itemName" } => s.kind === "itemName");
-  const availableItemNames = chosenCategory ? (data.itemNamesByCategory[chosenCategory.id] ?? []) : [];
 
   const relevantReqFilters = narrowFilters(data.reqFilters, data.reqFilterIdsByCategory, compatibleCategories);
   const relevantEquipmentFilters = narrowFilters(
@@ -228,7 +264,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
     availableStats,
     chosenStats,
     statSections,
-    chosenItemName: itemNameStep?.name,
+    chosenItemName,
     availableItemNames,
     relevantReqFilters,
     relevantEquipmentFilters,

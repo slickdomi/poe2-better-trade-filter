@@ -94,6 +94,8 @@ export interface FiltersOutput {
   categories: { id: string; text: string }[];
   stats: TradeStatEntry[];
   eligibility: Record<string, string[]>;
+  /** Same idea as `eligibility`, scoped to one exact base item name rather than a whole category — see parse.ts for why. */
+  eligibilityByItemName: Record<string, string[]>;
   itemNamesByCategory: Record<string, string[]>;
   itemFilters: FilterDef[];
   reqFilters: FilterDef[];

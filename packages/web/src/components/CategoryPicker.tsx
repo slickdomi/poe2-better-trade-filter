@@ -26,6 +26,7 @@ const CATEGORY_GROUPS: { label: string; ids: string[] }[] = [
   { label: "Jewels", ids: ["jewel"] },
   { label: "Flasks", ids: ["flask", "flask.life", "flask.mana", "flask.charm"] },
   { label: "Waystones", ids: ["map.waystone"] },
+  { label: "Tablets", ids: ["map.tablet"] },
 ];
 
 interface Props {

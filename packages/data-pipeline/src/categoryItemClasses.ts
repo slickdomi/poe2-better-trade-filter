@@ -7,9 +7,16 @@
  *
  * v1 intentionally only covers equipment slots that roll normal
  * prefix/suffix modifiers (weapons, armour, accessories, jewels, flasks,
- * waystones). Categories left out (gems, cards, currency, relics, map
- * fragments, etc.) simply won't appear in the generated category picker
+ * waystones, tablets). Categories left out (gems, cards, currency, relics,
+ * map fragments, etc.) simply won't appear in the generated category picker
  * until someone extends this map.
+ *
+ * Precursor Tablets (RePoE item_class "TowerAugmentation" — its own display
+ * name is "Tablet", confirmed in repoe-item-classes.json) roll ordinary
+ * weighted prefix/suffix mods same as any other equipment, just tagged by
+ * tablet type (tower_augment_abyss, _breach, _ritual, etc. — each its own
+ * mods_by_base.json entry); their fixed per-type implicit is picked up the
+ * same way any other base's `implicits` are. No poe2db data needed.
  *
  * Claw, Dagger, One/Two Hand Sword, and Flail are omitted even though
  * RePoE marks their bases `release_state: "released"` and some base names
@@ -61,4 +68,5 @@ export const CATEGORY_ITEM_CLASSES: Record<string, string[]> = {
   "flask.charm": ["UtilityFlask"],
   "flask": ["LifeFlask", "ManaFlask", "UtilityFlask"],
   "map.waystone": ["Map"],
+  "map.tablet": ["TowerAugmentation"],
 };

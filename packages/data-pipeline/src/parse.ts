@@ -8,6 +8,7 @@ import {
   eligibleModIdsForItemClasses,
   flattenModsByBase,
   residualEligibleModIds,
+  residualEligibleModIdsForBase,
 } from "./buildEligibility.js";
 import { buildPassthroughFilters } from "./equipmentFilters.js";
 import { buildItemNamesByCategory } from "./itemNames.js";
@@ -210,6 +211,9 @@ async function main() {
   // so this also tracks exactly which mod ids each individual category
   // resolves to, letting buildTierGroups split those cases back apart.
   const statCategoryModIds = new Map<string, Map<string, Set<string>>>();
+  // Feeds eligibilityByItemName below — cheap to keep since resolution
+  // already happens once per modId here regardless.
+  const modIdToStatId = new Map<string, string>();
   const eligibility: Record<string, string[]> = {};
   const reqFilterIdsByCategory: Record<string, string[]> = {};
   const equipmentFilterIdsByCategory: Record<string, string[]> = {};
@@ -252,6 +256,7 @@ async function main() {
       if (resolved) {
         statIds.add(resolved.id);
         usedStatIds.add(resolved.id);
+        modIdToStatId.set(modId, resolved.id);
         matched++;
         // Collected per pool (Base/Corrupted/Implicit) in buildTierGroups
         // below, not merged — each gets its own independent ladder.
@@ -291,13 +296,62 @@ async function main() {
 
     eligibility[categoryId] = [...statIds].sort();
     reqFilterIdsByCategory[categoryId] = reqFilterIdsForCategory(repoeClasses, baseItems);
-    const hasSpiritStat = [...statIds].some((id) => /Spirit/.test(statTextById.get(id) ?? ""));
+    // Word-bounded so this doesn't false-positive on "Azmeri Spirit(s)" —
+    // an unrelated map-boss monster type, matched once Tablets were added
+    // (their mods reference it, e.g. "Map has #% increased chance to
+    // contain Azmeri Spirits") — which is a wholly different thing from the
+    // Spirit resource this filter is actually about.
+    const hasSpiritStat = [...statIds].some((id) => /\bSpirit\b/.test(statTextById.get(id) ?? ""));
     equipmentFilterIdsByCategory[categoryId] = equipmentFilterIdsForCategory(
       repoeClasses,
       baseItems,
       categoryId,
       hasSpiritStat,
     );
+  }
+
+  // Per-exact-base-item eligibility, distinct from the broader per-category
+  // union above — deliberately opt-in per category (`ITEM_NAME_ELIGIBILITY_CATEGORIES`
+  // below), not derived automatically for every category. Most equipment
+  // categories DO turn out to have base-name-level mod pool variance if you
+  // go looking (e.g. "Runeforged"/"Runemastered" base variants carry an
+  // extra RePoE tag, which does resolve to a genuinely different mod
+  // pool) — but rolling that out everywhere would ~4x this file's size for
+  // hundreds of base names most users will never need narrowed, and is a
+  // much bigger, unvetted change than what was actually asked for. Tablets
+  // are the one case this is worth it for: each of the 8 tablet types
+  // (Abyss, Breach, Ritual, ...) has its own disjoint mod pool despite
+  // sharing one trade category ("Tablet") with no per-type sub-category to
+  // filter on — the app uses this to narrow "other available modifiers"
+  // down to just Breach-compatible ones once a Breach-only modifier (or the
+  // "Breach Tablet" base type) is chosen, without needing a real trade-API
+  // category for it.
+  const ITEM_NAME_ELIGIBILITY_CATEGORIES = ["map.tablet"];
+  const eligibilityByItemName: Record<string, string[]> = {};
+  for (const [categoryId, repoeClasses] of Object.entries(CATEGORY_ITEM_CLASSES)) {
+    if (!ITEM_NAME_ELIGIBILITY_CATEGORIES.includes(categoryId)) continue;
+    const statIdsByName = new Map<string, Set<string>>();
+    for (const base of Object.values(baseItems)) {
+      if (!repoeClasses.includes(base.item_class)) continue;
+      const statIds = statIdsByName.get(base.name) ?? new Set<string>();
+      const modIds = new Set([
+        ...base.implicits,
+        ...(tagKeyToModIds.get(base.tags.join(",")) ?? []),
+        ...residualEligibleModIdsForBase(base, residualMods),
+      ]);
+      for (const modId of modIds) {
+        const statId = modIdToStatId.get(modId);
+        if (statId) statIds.add(statId);
+      }
+      statIdsByName.set(base.name, statIds);
+    }
+
+    const sortedByName = [...statIdsByName.entries()].map(([name, ids]) => [name, [...ids].sort()] as const);
+    const firstKey = JSON.stringify(sortedByName[0]?.[1] ?? []);
+    const isHomogeneous = sortedByName.every(([, ids]) => JSON.stringify(ids) === firstKey);
+    if (sortedByName.length > 1 && !isHomogeneous) {
+      for (const [name, ids] of sortedByName) eligibilityByItemName[name] = ids;
+    }
   }
 
   console.log(
@@ -330,6 +384,7 @@ async function main() {
   // tracks these with a distinct id, same as fractured).
   const desecratedBucket = statIndex.get("desecrated");
   const desecratedAdditionsByCategory: Record<string, string[]> = {};
+  const baseIdToDesecratedId = new Map<string, string>();
   for (const stat of [...stats]) {
     if (!stat.tierGroups) continue;
     // Almost always exactly one, but split like "Base" can be (see
@@ -350,6 +405,7 @@ async function main() {
       tierGroups: desecratedGroups,
       affixType: stat.affixType,
     });
+    baseIdToDesecratedId.set(stat.id, desecratedEntry.id);
     for (const [categoryId, ids] of Object.entries(eligibility)) {
       if (ids.includes(stat.id)) {
         (desecratedAdditionsByCategory[categoryId] ??= []).push(desecratedEntry.id);
@@ -367,6 +423,7 @@ async function main() {
   // Base tier ladder and eligible everywhere the Base version is.
   const fracturedBucket = statIndex.get("fractured");
   const fracturedAdditionsByCategory: Record<string, string[]> = {};
+  const baseIdToFracturedId = new Map<string, string>();
   for (const stat of [...stats]) {
     // A stat's "Base" pool can itself be split into item-type-scoped
     // variants (see buildTierGroups) — carry every variant over, each still
@@ -388,6 +445,7 @@ async function main() {
       })),
       affixType: stat.affixType,
     });
+    baseIdToFracturedId.set(stat.id, fracturedEntry.id);
     for (const [categoryId, ids] of Object.entries(eligibility)) {
       if (ids.includes(stat.id)) {
         (fracturedAdditionsByCategory[categoryId] ??= []).push(fracturedEntry.id);
@@ -396,6 +454,22 @@ async function main() {
   }
   for (const [categoryId, ids] of Object.entries(fracturedAdditionsByCategory)) {
     eligibility[categoryId] = [...eligibility[categoryId], ...ids].sort();
+  }
+
+  // Mirror the same Desecrated/Fractured variant additions into the
+  // per-item-name eligibility built earlier, which predates both (it's
+  // derived straight from modIdToStatId, not from `stats`/`eligibility`) —
+  // otherwise narrowing by item name would wrongly hide a still-valid
+  // Desecrated/Fractured version of a stat a base can actually roll.
+  for (const [name, ids] of Object.entries(eligibilityByItemName)) {
+    const extra: string[] = [];
+    for (const id of ids) {
+      const desecrated = baseIdToDesecratedId.get(id);
+      if (desecrated) extra.push(desecrated);
+      const fractured = baseIdToFracturedId.get(id);
+      if (fractured) extra.push(fractured);
+    }
+    if (extra.length > 0) eligibilityByItemName[name] = [...ids, ...extra].sort();
   }
 
   const itemNamesByCategory = buildItemNamesByCategory(CATEGORY_ITEM_CLASSES, baseItems);
@@ -418,6 +492,7 @@ async function main() {
     categories,
     stats,
     eligibility,
+    eligibilityByItemName,
     itemNamesByCategory,
     itemFilters,
     reqFilters,

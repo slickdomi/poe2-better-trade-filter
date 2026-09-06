@@ -8,12 +8,19 @@ interface Props {
   onReset: () => void;
 }
 
-function describeStep(step: Step, data: FiltersData): string {
+function describeStep(step: Step, data: FiltersData, statsById: Map<string, FiltersData["stats"][number]>): string {
   switch (step.kind) {
     case "category":
       return data.categories.find((c) => c.id === step.categoryId)?.text ?? step.categoryId;
     case "stat":
-      return data.stats.find((s) => s.id === step.statId)?.text ?? step.statId;
+      // A handful of trade stat ids are listed twice under different wording
+      // (confirmed live — e.g. explicit.stat_1210760818 is both "Breaches
+      // have #% increased Monster density" and "Breaches in Map have #%
+      // increased Pack Size"); a Map keyed by id take the same last-one-wins
+      // entry `statsById` elsewhere (derive.ts) resolves to, so this always
+      // shows the same wording as the modifier list/chosen-stat row instead
+      // of independently landing on whichever happened to come first.
+      return statsById.get(step.statId)?.text ?? step.statId;
     case "statSection":
       return `${step.type.toUpperCase()} group`;
     case "itemName":
@@ -36,13 +43,15 @@ function describeStep(step: Step, data: FiltersData): string {
 export function PipelineTrail({ steps, data, onRemoveStep, onUndoLast, onReset }: Props) {
   if (steps.length === 0) return null;
 
+  const statsById = new Map(data.stats.map((s) => [s.id, s]));
+
   return (
     <nav className="pipeline-trail">
       <ol>
         {steps.map((step, i) => (
           <li key={i}>
             <button type="button" onClick={() => onRemoveStep(i)} title="Remove this selection">
-              {describeStep(step, data)}
+              {describeStep(step, data, statsById)}
               <span className="trail-remove" aria-hidden="true">
                 ×
               </span>

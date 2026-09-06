@@ -37,6 +37,15 @@ export interface FiltersData {
   categories: { id: string; text: string }[];
   stats: TradeStatEntry[];
   eligibility: Record<string, string[]>;
+  /**
+   * Same idea as `eligibility`, scoped to one exact base item name rather
+   * than a whole category. Usually identical to (a superset containing) the
+   * category's own pool, since most item types share one mod pool across
+   * every base name — Tablets are the exception this exists for: each of
+   * the 8 tablet types has its own disjoint pool despite sharing one trade
+   * category with no per-type sub-category to filter on.
+   */
+  eligibilityByItemName: Record<string, string[]>;
   itemNamesByCategory: Record<string, string[]>;
   itemFilters: FilterDef[];
   reqFilters: FilterDef[];

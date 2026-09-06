@@ -1,4 +1,4 @@
-import type { RepoeBaseItemsFile, RepoeMod, RepoeModsByBaseFile, RepoeModsFile } from "./types.js";
+import type { RepoeBaseItem, RepoeBaseItemsFile, RepoeMod, RepoeModsByBaseFile, RepoeModsFile } from "./types.js";
 
 /**
  * mods_by_base.json nests entries under a cosmetic top-level category label
@@ -76,6 +76,14 @@ export function residualEligibleModIds(
     }
   }
   return result;
+}
+
+/** Same eligibility rule as `residualEligibleModIds`, for a single base item rather than a whole category's worth at once. */
+export function residualEligibleModIdsForBase(base: RepoeBaseItem, residualMods: [string, RepoeMod][]): string[] {
+  const baseTagSet = new Set(base.tags);
+  return residualMods
+    .filter(([, mod]) => mod.spawn_weights.some((sw) => sw.weight > 0 && baseTagSet.has(sw.tag)))
+    .map(([id]) => id);
 }
 
 /** Mods reachable via `tagKeyToModIds` at all (any base, any tag combo) — used to find what's left over for `residualEligibleModIds` to pick up. */
