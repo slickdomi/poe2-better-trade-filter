@@ -1,7 +1,14 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildTradeStatIndex, normalizeRepoeText, normalizeTradeText, resolveTradeStatId } from "./matchStatIds.js";
+import {
+  buildLocalVariantIndex,
+  buildTradeStatIndex,
+  isLocalRepoeStatId,
+  normalizeRepoeText,
+  normalizeTradeText,
+  resolveTradeStatId,
+} from "./matchStatIds.js";
 import {
   buildResidualMods,
   collectCoveredModIds,
@@ -182,6 +189,7 @@ async function main() {
   ]);
 
   const statIndex = buildTradeStatIndex(tradeStats.result);
+  const localVariantByGlobalId = buildLocalVariantIndex(statIndex);
   const tagKeyToModIds = flattenModsByBase(modsByBase);
   const statTextById = new Map(tradeStats.result.flatMap((g) => g.entries).map((e) => [e.id, e.text]));
 
@@ -203,6 +211,22 @@ async function main() {
   // loadPoe2dbUniqueEligibility.ts's doc comment.
   const poe2dbUniqueStatIds = await loadPoe2dbUniqueStatIds(RAW_CACHE_DIR, statIndex, baseItems);
   console.log(`poe2db unique-item classes with data: ${poe2dbUniqueStatIds.size}`);
+
+  /**
+   * poe2db's scraped mod text carries no local/global marker (see
+   * buildLocalVariantIndex), so a scraped "+# to maximum Energy Shield" on a
+   * body armour resolves to trade's *global* id, even though trade indexes
+   * that armour's own Energy Shield under the "(Local)" one. RePoE's stat ids
+   * do carry the distinction, so where a category's RePoE-derived pool landed
+   * on the local twin, that's taken as evidence the category's items are
+   * indexed there and the scraped id is corrected to match. With no such
+   * evidence (the twin never shows up in normal rolls for this category) the
+   * scraped id is left exactly as resolved.
+   */
+  const preferLocalVariant = (statId: string, repoeStatIds: Set<string>): string => {
+    const localId = localVariantByGlobalId.get(statId);
+    return localId && repoeStatIds.has(localId) ? localId : statId;
+  };
 
   const categoryOptionText = new Map<string, string>();
   const typeFilters = tradeFilters.result.find((g) => g.id === "type_filters");
@@ -263,7 +287,7 @@ async function main() {
       const isImplicit = mod.generation_type === "implicit";
       const bucketOrder = isImplicit ? ["implicit", "explicit"] : ["explicit", "implicit"];
       const normalized = normalizeRepoeText(mod.text, mod.stats[0].min, mod.stats[0].max);
-      const resolved = resolveTradeStatId(statIndex, bucketOrder, normalized);
+      const resolved = resolveTradeStatId(statIndex, bucketOrder, normalized, isLocalRepoeStatId(mod.stats[0].id));
       if (resolved) {
         (isUnique ? uniqueStatIds : statIds).add(resolved.id);
         usedStatIds.add(resolved.id);
@@ -294,12 +318,18 @@ async function main() {
       }
     }
 
+    // Snapshot of what RePoE alone resolved to, taken before the poe2db
+    // unions below add to it — that's the pool `preferLocalVariant` treats as
+    // evidence, and it must not shift depending on which union ran first.
+    const repoeStatIds = new Set(statIds);
+
     // Genesis Tree / Otherworldly: union in poe2db's page-confirmed stat
     // ids for every item class this category maps to.
     for (const itemClass of repoeClasses) {
       const poe2dbIds = poe2dbGenesisStatIds.get(itemClass);
       if (!poe2dbIds) continue;
-      for (const id of poe2dbIds) {
+      for (const scrapedId of poe2dbIds) {
+        const id = preferLocalVariant(scrapedId, repoeStatIds);
         statIds.add(id);
         usedStatIds.add(id);
       }
@@ -310,7 +340,8 @@ async function main() {
     for (const itemClass of repoeClasses) {
       const poe2dbUniqueIds = poe2dbUniqueStatIds.get(itemClass);
       if (!poe2dbUniqueIds) continue;
-      for (const id of poe2dbUniqueIds) {
+      for (const scrapedId of poe2dbUniqueIds) {
+        const id = preferLocalVariant(scrapedId, repoeStatIds);
         uniqueStatIds.add(id);
         usedStatIds.add(id);
       }

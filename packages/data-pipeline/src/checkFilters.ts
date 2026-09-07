@@ -98,6 +98,41 @@ const checks: Record<string, Check> = {
     }
   },
 
+  // Regression guard for the local-vs-global stat collision (see
+  // matchStatIds.ts): trade lists "# to maximum Energy Shield" twice — plain
+  // for the global character stat an amulet grants, and suffixed "(Local)"
+  // for a body armour's own Energy Shield — while RePoE gives both the exact
+  // same display text. A text-only join put the global id on every armour
+  // category, offering a filter no body armour can ever match (trade indexes
+  // their Energy Shield under the local id) and no way to pick the local one.
+  // Each category must end up with exactly the twin its items really roll.
+  "maximum Energy Shield resolves to the local/global variant each category actually rolls"({ data }) {
+    const explicitStat = (text: string) => data.stats.find((s) => s.text === text && s.type === "explicit");
+    const local = explicitStat("# to maximum Energy Shield (Local)");
+    const global = explicitStat("# to maximum Energy Shield");
+    if (!local || !global) return [`could not find both "# to maximum Energy Shield" variants in stats`];
+
+    const failures: string[] = [];
+    const eligibleAnywhere = (categoryId: string, statId: string) =>
+      (data.eligibility[categoryId] ?? []).includes(statId) ||
+      (data.uniqueEligibility[categoryId] ?? []).includes(statId);
+
+    // Every category whose items carry Energy Shield as their own property.
+    for (const categoryId of ["armour.chest", "armour.helmet", "armour.gloves", "armour.boots", "armour.focus"]) {
+      if (!data.eligibility[categoryId]?.includes(local.id)) {
+        failures.push(`"${local.id}" (local) missing from eligibility["${categoryId}"]`);
+      }
+      if (eligibleAnywhere(categoryId, global.id)) {
+        failures.push(`"${global.id}" (global) wrongly offered on "${categoryId}"`);
+      }
+    }
+    // ...and the other direction: an amulet's Energy Shield really is global.
+    if (!data.eligibility["accessory.amulet"]?.includes(global.id)) {
+      failures.push(`"${global.id}" (global) missing from eligibility["accessory.amulet"]`);
+    }
+    return failures;
+  },
+
   // Regression guard for the fix that filters itemNamesByCategory against the
   // live trade catalog: RePoE marks 200+ base items "released" (dev-only
   // "[DNT]" placeholders, retired bases, etc.) that were never actually
