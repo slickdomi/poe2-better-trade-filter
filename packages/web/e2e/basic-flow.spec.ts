@@ -78,3 +78,23 @@ test("the unique-only modifiers toggle changes what's available without crashing
   // Toggling shouldn't throw or blank the page — the modifier search should still be usable.
   await expect(page.locator('input[placeholder="Search modifiers…"], input[placeholder="No more eligible modifiers"]')).toBeVisible();
 });
+
+test("the equipment doll picks a category directly and via a slot menu", async ({ page }) => {
+  await page.goto("/");
+
+  // A slot standing in for exactly one category picks it straight away.
+  await page.locator('.doll-slot[aria-label="Body Armour"]').click();
+  await expect(page.locator(".category-chip .chip")).toHaveText("Body Armour");
+
+  await page.click('button:has-text("Reset")');
+
+  // A slot covering several opens a menu instead — and Escape backs out of it.
+  await page.locator('.doll-slot[aria-label="Weapon"]').click();
+  await expect(page.locator(".doll-menu")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".doll-menu")).toHaveCount(0);
+
+  await page.locator('.doll-slot[aria-label="Weapon"]').click();
+  await page.locator(".doll-menu-item", { hasText: "Crossbow" }).click();
+  await expect(page.locator(".category-chip .chip")).toHaveText("Crossbow");
+});

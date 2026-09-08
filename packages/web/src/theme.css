@@ -32,6 +32,16 @@
   --border: #2e2c27;
   --border-strong: #4a463c;
 
+  /* Equipment doll (the category picker's inventory-screen layout) */
+  --bg-doll: #101013;
+  --bg-slot: #17171b;
+  --bg-slot-hover: #221f19;
+  --border-slot: #35322b;
+  /* Optional backdrop behind the slots. Drop an inventory-screen image into
+     packages/web/public/ and set this to url("/your-file.png") to show the
+     real art behind them; the slot boxes are positioned to line up with it. */
+  --doll-backdrop: none;
+
   /* Text */
   --text: #d9d6c9;
   --text-dim: #948f80;
