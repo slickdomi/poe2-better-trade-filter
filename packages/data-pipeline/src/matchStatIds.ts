@@ -104,9 +104,17 @@ export function buildLocalVariantIndex(index: TradeStatIndex): Map<string, strin
 }
 
 /**
- * `preferLocal` (a RePoE `local_*` stat) tries the "(Local)" wording first
- * within each bucket, so bucket priority — implicit-before-explicit for an
- * implicit mod — still wins over the local/global preference.
+ * `preferLocal` (a RePoE `local_*` stat) sweeps every bucket for the
+ * "(Local)" wording before falling back to the plain one, rather than
+ * settling for a plain match in whichever bucket comes first.
+ *
+ * Bucket order is only ever a guess derived from `generation_type`, and a
+ * "(Local)" wording is direct evidence, so it deserves to win: the one mod
+ * this changes is `AxeImplicitCullingStrike1` — an axe *implicit* that RePoE
+ * types "unique" (it's hardcoded onto a unique item), which therefore gets
+ * the explicit-first order and used to land on explicit "Culling Strike",
+ * the global stat that `kill_enemy_on_hit_if_under_10%_life` grants.
+ * Trade indexes that axe under implicit "Culling Strike (Local)".
  */
 export function resolveTradeStatId(
   index: TradeStatIndex,
@@ -114,11 +122,14 @@ export function resolveTradeStatId(
   normalizedRepoeText: string,
   preferLocal = false,
 ): RawStatEntry | undefined {
+  if (preferLocal) {
+    for (const bucket of bucketOrder) {
+      const found = index.get(bucket)?.get(`${normalizedRepoeText}${LOCAL_SUFFIX}`);
+      if (found) return found;
+    }
+  }
   for (const bucket of bucketOrder) {
-    const byText = index.get(bucket);
-    if (!byText) continue;
-    const found =
-      (preferLocal ? byText.get(`${normalizedRepoeText}${LOCAL_SUFFIX}`) : undefined) ?? byText.get(normalizedRepoeText);
+    const found = index.get(bucket)?.get(normalizedRepoeText);
     if (found) return found;
   }
   return undefined;
