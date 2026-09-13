@@ -60,6 +60,22 @@ function makeFiltersData(): FiltersData {
   };
 }
 
+describe("disabled modifiers", () => {
+  it("stay listed but don't count toward the affix cap", () => {
+    const steps: Step[] = [
+      { kind: "category", categoryId: "weapon.onemace" },
+      { kind: "stat", statId: "stat.prefix1" },
+      { kind: "stat", statId: "stat.prefix2", disabled: true },
+    ];
+    const derived = deriveState(steps, makeFiltersData(), { enforceAffixCap: true, includeUniqueMods: false });
+    expect(derived.chosenStats.map((s) => [s.statId, s.disabled])).toEqual([
+      ["stat.prefix1", false],
+      ["stat.prefix2", true],
+    ]);
+    expect(derived.prefixCount).toBe(1);
+  });
+});
+
 const NO_CAP = { enforceAffixCap: false, includeUniqueMods: false };
 const WITH_UNIQUE = { enforceAffixCap: false, includeUniqueMods: true };
 const WITH_CAP = { enforceAffixCap: true, includeUniqueMods: false };

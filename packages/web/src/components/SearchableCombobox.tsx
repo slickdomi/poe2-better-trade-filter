@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { fuzzyFilter } from "../lib/fuzzySearch";
 import { GroupBadge } from "./GroupBadge";
 
 export interface ComboboxOption {
@@ -20,15 +21,15 @@ interface Props {
   emptyMessage?: string;
 }
 
-function groupOptions(options: ComboboxOption[]): [string, ComboboxOption[]][] {
-  const byGroup = new Map<string, ComboboxOption[]>();
-  for (const o of options) {
-    const key = o.group ?? "";
-    const list = byGroup.get(key);
-    if (list) list.push(o);
-    else byGroup.set(key, [o]);
-  }
-  return [...byGroup.entries()];
+/**
+ * Sections `options` by group, with groups in the order they first appear in
+ * `allOptions` — so a best-match-first search result still lists its groups
+ * (Explicit, Implicit, ...) in their usual order, ranking only within each.
+ */
+function groupOptions(options: ComboboxOption[], allOptions: ComboboxOption[]): [string, ComboboxOption[]][] {
+  const byGroup = new Map<string, ComboboxOption[]>(allOptions.map((o) => [o.group ?? "", []]));
+  for (const o of options) byGroup.get(o.group ?? "")!.push(o);
+  return [...byGroup.entries()].filter(([, opts]) => opts.length > 0);
 }
 
 export function SearchableCombobox({
@@ -44,17 +45,21 @@ export function SearchableCombobox({
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // "click", not "mousedown": closing the list shifts the layout, and doing
+    // that between a button's mousedown and mouseup would swallow the very
+    // click that was meant to close it (e.g. "Save current" elsewhere on the
+    // page). On "click" the clicked element has already had its turn.
     function handleClickOutside(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  const filtered = options.filter((o) => o.label.toLowerCase().includes(query.toLowerCase()));
-  const groups = groupOptions(filtered);
+  const filtered = fuzzyFilter(options, query, (o) => o.label);
+  const groups = groupOptions(filtered, options);
 
   function handleSelect(option: ComboboxOption) {
     onSelect(option.id);
@@ -68,7 +73,15 @@ export function SearchableCombobox({
   const inputValue = isOpen ? query : clearOnSelect ? query : (selectedLabel ?? query);
 
   return (
-    <div className="combobox" ref={containerRef}>
+    // Escape is handled on the whole combobox, not just the input, so it still
+    // closes the list after an option was clicked (focus is then on the option).
+    <div
+      className="combobox"
+      ref={containerRef}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setIsOpen(false);
+      }}
+    >
       <input
         type="text"
         className="combobox-input"
@@ -81,9 +94,6 @@ export function SearchableCombobox({
         onChange={(e) => {
           setQuery(e.target.value);
           setIsOpen(true);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") setIsOpen(false);
         }}
       />
       {isOpen && (

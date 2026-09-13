@@ -31,6 +31,8 @@ export interface DerivedStatFilter {
   weight?: number;
   /** Only ever rolls on Unique items — not part of the normal weighted-affix pool, so it doesn't count toward the 3/3 affix cap either. */
   isUniqueOnly: boolean;
+  /** Unticked: still listed (and still narrowing what else can be added), but left out of the trade query, the regex, and the 3/3 affix cap. */
+  disabled: boolean;
 }
 
 /** An available-to-add modifier, same as a chosen one but without range/section/weight (those only exist once actually added). */
@@ -183,6 +185,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
         sectionId,
         weight: s.weight,
         isUniqueOnly: uniqueStatIdUnion.has(s.statId),
+        disabled: s.disabled ?? false,
       };
     });
 
@@ -205,7 +208,8 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
   // Only the default (AND) group represents mods actually rolled on the item at
   // once — a stat parked in a Count/Not/If/Weighted group isn't necessarily
   // simultaneously present, so it shouldn't count against the 3/3 affix cap.
-  const defaultGroupStats = chosenStats.filter((s) => s.sectionId === DEFAULT_SECTION_ID);
+  // Neither should a disabled one, which isn't part of the search at all.
+  const defaultGroupStats = chosenStats.filter((s) => s.sectionId === DEFAULT_SECTION_ID && !s.disabled);
   const prefixCount = defaultGroupStats.filter((s) => s.affixType === "prefix").length;
   const suffixCount = defaultGroupStats.filter((s) => s.affixType === "suffix").length;
 

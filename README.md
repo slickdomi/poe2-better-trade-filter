@@ -7,6 +7,7 @@ A companion filter builder for the [Path of Exile 2 trade site](https://www.path
 - `packages/data-pipeline` fetches the official trade API's public `data/stats` / `data/items` / `data/filters` / `data/leagues` endpoints (no API key needed) and the [RePoE-fork](https://repoe-fork.github.io/poe2/) PoE2 data export (community-maintained, mined from game files), then cross-references them into a single `packages/web/src/data/filters.json` describing, per item category, which trade stat ids are eligible. It also scrapes poe2db.tw's per-item-type "Modifiers Calc" data (see below) for the handful of mods (Genesis Tree / Otherworldly) where RePoE's own data turned out unreliable.
 - `packages/web` is a static React + TypeScript SPA that reads that file and builds the search step by step.
 - The "open in official trade site" button builds the query and gzip/base64url-encodes it directly into a `pathofexile.com/trade2/search/poe2/{league}/{blob}` URL — the same mechanism the official site's own "search for similar items" link uses. No backend or server-side proxy is involved.
+- The **Regex generator** tab reuses the same category → modifier pipeline to build an in-game search string (stash/vendor search box) instead of a trade link (`packages/web/src/lib/regex.ts`). Each modifier is matched by the shortest slice of its text no other eligible modifier contains, to stay under the 250-character limit. Saved regexes are their own pool, separate from saved trade queries, with their own export/import files.
 
 ## Data sources & attribution
 

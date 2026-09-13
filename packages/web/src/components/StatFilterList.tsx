@@ -22,6 +22,10 @@ interface Props {
   onRemoveSection: (sectionId: string) => void;
   onMoveStat: (statId: string, sectionId: string) => void;
   onWeightChange: (statId: string, weight: number | undefined) => void;
+  /** Ticking/unticking a chosen modifier — an unticked one stays listed but is left out of the search. */
+  onToggleEnabled: (statId: string, enabled: boolean) => void;
+  /** Whether filter groups (Count, Not, Weighted sum, ...) can be added — defaults to true. */
+  allowGroups?: boolean;
 }
 
 const SECTION_TYPE_LABEL: Record<StatSectionType, string> = {
@@ -32,6 +36,8 @@ const SECTION_TYPE_LABEL: Record<StatSectionType, string> = {
   not: "Not",
   if: "If",
 };
+
+const ALL_SECTION_TYPES = Object.keys(SECTION_TYPE_LABEL) as StatSectionType[];
 
 const SECTION_TYPE_HINT: Partial<Record<StatSectionType, string>> = {
   not: "The item must not have any of these modifiers.",
@@ -158,6 +164,7 @@ function StatRow({
   onRangeChange,
   onMoveStat,
   onWeightChange,
+  onToggleEnabled,
   onDragStart,
   onDragEnd,
 }: {
@@ -172,11 +179,14 @@ function StatRow({
   onRangeChange: (statId: string, min: number | undefined, max: number | undefined) => void;
   onMoveStat: (statId: string, sectionId: string) => void;
   onWeightChange: (statId: string, weight: number | undefined) => void;
+  onToggleEnabled: (statId: string, enabled: boolean) => void;
   onDragStart: (statId: string) => void;
   onDragEnd: () => void;
 }) {
+  const rowClassName = [isDragging && "chosen-stat-dragging", stat.disabled && "chosen-stat-disabled"].filter(Boolean).join(" ");
+
   return (
-    <li className={isDragging ? "chosen-stat-dragging" : undefined}>
+    <li className={rowClassName || undefined}>
       <div className="chosen-stat-row">
         <div className="chosen-stat-controls">
           <span
@@ -190,6 +200,14 @@ function StatRow({
               onDragStart(stat.statId);
             }}
             onDragEnd={onDragEnd}
+          />
+          <input
+            type="checkbox"
+            className="chosen-stat-toggle"
+            checked={!stat.disabled}
+            onChange={(e) => onToggleEnabled(stat.statId, e.target.checked)}
+            title={stat.disabled ? "Include this modifier in the search again" : "Leave this modifier out of the search, keeping it listed"}
+            aria-label={`Include "${stat.text}" in the search`}
           />
           <GroupBadge group={stat.group} />
           {stat.affixType && <AffixBadge affixType={stat.affixType} />}
@@ -280,6 +298,8 @@ export function StatFilterList({
   onRemoveSection,
   onMoveStat,
   onWeightChange,
+  onToggleEnabled,
+  allowGroups = true,
 }: Props) {
   const [expandedTiers, setExpandedTiers] = useState<Set<string>>(new Set());
   const [newSectionType, setNewSectionType] = useState<StatSectionType>("count");
@@ -332,8 +352,9 @@ export function StatFilterList({
     <section>
       <h2>Modifiers</h2>
       <p className="hint">
-        Only modifiers that can actually roll on this selection are listed. Click one to add it. Drag a modifier
-        by its handle to move it between groups.
+        Only modifiers that can actually roll on this selection are listed. Click one to add it, and untick one to
+        leave it out of the search without removing it.
+        {allowGroups && " Drag a modifier by its handle to move it between groups."}
       </p>
       <Legend />
       <label className="affix-cap-toggle">
@@ -389,7 +410,7 @@ export function StatFilterList({
                   value={section.type}
                   onChange={(e) => onUpdateSection(section.id, { type: e.target.value as StatSectionType })}
                 >
-                  {(Object.keys(SECTION_TYPE_LABEL) as StatSectionType[]).map((type) => (
+                  {ALL_SECTION_TYPES.map((type) => (
                     <option key={type} value={type}>
                       {SECTION_TYPE_LABEL[type]}
                     </option>
@@ -448,6 +469,7 @@ export function StatFilterList({
                   onRangeChange={onRangeChange}
                   onMoveStat={onMoveStat}
                   onWeightChange={onWeightChange}
+                  onToggleEnabled={onToggleEnabled}
                   onDragStart={setDraggingStatId}
                   onDragEnd={() => setDraggingStatId(null)}
                 />
@@ -457,18 +479,20 @@ export function StatFilterList({
         </div>
       ))}
 
-      <div className="add-section-row">
-        <select value={newSectionType} onChange={(e) => setNewSectionType(e.target.value as StatSectionType)}>
-          {(Object.keys(SECTION_TYPE_LABEL) as StatSectionType[]).map((type) => (
-            <option key={type} value={type}>
-              {SECTION_TYPE_LABEL[type]}
-            </option>
-          ))}
-        </select>
-        <button type="button" onClick={() => onAddSection(newSectionType)}>
-          + Add filter group
-        </button>
-      </div>
+      {allowGroups && (
+        <div className="add-section-row">
+          <select value={newSectionType} onChange={(e) => setNewSectionType(e.target.value as StatSectionType)}>
+            {ALL_SECTION_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {SECTION_TYPE_LABEL[type]}
+              </option>
+            ))}
+          </select>
+          <button type="button" onClick={() => onAddSection(newSectionType)}>
+            + Add filter group
+          </button>
+        </div>
+      )}
     </section>
   );
 }

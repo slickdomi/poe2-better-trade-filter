@@ -26,7 +26,7 @@ export function TradeLinkButton({
   const [error, setError] = useState<string | null>(null);
   const disabled =
     !derived.chosenCategory &&
-    derived.chosenStats.length === 0 &&
+    derived.chosenStats.every((s) => s.disabled) &&
     !derived.chosenItemName &&
     derived.chosenMisc.length === 0;
 

@@ -88,7 +88,16 @@ export type StatSectionType = "and" | "count" | "weight" | "weight2" | "not" | "
 
 export type Step =
   | { kind: "category"; categoryId: string }
-  | { kind: "stat"; statId: string; sectionId?: string; min?: number; max?: number; weight?: number }
+  | {
+      kind: "stat";
+      statId: string;
+      sectionId?: string;
+      min?: number;
+      max?: number;
+      weight?: number;
+      /** Unticked: kept in the list but left out of the search. Absent (every step saved before this existed) means enabled. */
+      disabled?: boolean;
+    }
   | { kind: "statSection"; sectionId: string; type: StatSectionType; min?: number; max?: number }
   | { kind: "itemName"; name: string }
   | { kind: "misc"; group: MiscFilterGroup; filterId: string; value: MiscFilterValue };
@@ -147,3 +156,17 @@ export interface QuerySnapshot {
   includeUniqueMods: boolean;
   steps: Step[];
 }
+
+/**
+ * The Regex generator tab's counterpart to `QuerySnapshot` — just the
+ * pipeline, since an in-game search has no league, seller, or price. Saved
+ * regexes store this (see `SavedRegex` in lib/savedQueries.ts).
+ */
+export interface RegexSnapshot {
+  enforceAffixCap: boolean;
+  includeUniqueMods: boolean;
+  steps: Step[];
+}
+
+/** The app's top-level tabs. */
+export type TabId = "trade" | "regex";

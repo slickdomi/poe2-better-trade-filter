@@ -1,8 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import filtersJson from "../data/filters.json";
-import type { BuyoutPriceValue, FiltersData, QuerySnapshot, StatusOption } from "../state/types";
+import {
+  STATUS_OPTIONS,
+  type BuyoutPriceValue,
+  type FiltersData,
+  type QuerySnapshot,
+  type RegexSnapshot,
+  type StatusOption,
+  type TabId,
+} from "../state/types";
 import { usePipeline } from "../state/usePipeline";
-import { CategoryPicker } from "../components/CategoryPicker";
+import { CategoryChoice } from "../components/CategoryChoice";
 import { StatFilterList } from "../components/StatFilterList";
 import { ItemNamePicker } from "../components/ItemNamePicker";
 import { MiscFilterPanel } from "../components/MiscFilterPanel";
@@ -10,14 +18,47 @@ import { PipelineTrail } from "../components/PipelineTrail";
 import { TradeLinkButton } from "../components/TradeLinkButton";
 import { SearchableCombobox } from "../components/SearchableCombobox";
 import { SavedQueriesPanel } from "../components/SavedQueriesPanel";
-import { pushQueryToHistory, readSharedQuery } from "../lib/shareUrl";
+import { RegexPage } from "./RegexPage";
+import { pushSharedStateToHistory, readSharedState, type SharedState } from "../lib/shareUrl";
 import { getDefaultBuyoutPrice, getDefaultStatus } from "../lib/defaultTradeOptions";
+import { tradeQueryStore, type SavedQuery } from "../lib/savedQueries";
 
 const data = filtersJson as FiltersData;
 const DEFAULT_LEAGUE = data.leagues[0]?.id ?? "Standard";
 
+const TABS: { id: TabId; label: string; badge?: string }[] = [
+  { id: "trade", label: "Trade" },
+  { id: "regex", label: "Regex generator", badge: "(beta)" },
+];
+
+function describeSavedQuery(q: SavedQuery): string {
+  const statusLabel = STATUS_OPTIONS.find((o) => o.id === q.status)?.label ?? q.status;
+  return `${q.league} · ${statusLabel} · ${q.steps.length} filter${q.steps.length === 1 ? "" : "s"}`;
+}
+
+/** Whether the Trade tab is exactly what a blank slate loads (see syncFromLocation below). */
+function isBlankTradeSnapshot(q: QuerySnapshot): boolean {
+  return (
+    q.steps.length === 0 &&
+    q.enforceAffixCap &&
+    !q.includeUniqueMods &&
+    q.league === DEFAULT_LEAGUE &&
+    q.status === (getDefaultStatus() ?? "securable") &&
+    JSON.stringify(q.buyoutPrice) === JSON.stringify(getDefaultBuyoutPrice() ?? { currency: "" })
+  );
+}
+
+function isBlankRegexSnapshot(r: RegexSnapshot): boolean {
+  return r.steps.length === 0 && r.enforceAffixCap && !r.includeUniqueMods;
+}
+
 export function App() {
+  const [activeTab, setActiveTab] = useState<TabId>("trade");
   const pipeline = usePipeline(data);
+  // Lives here rather than in RegexPage so that tab's selection survives
+  // switching away (only the active tab is mounted), and so it can be
+  // encoded into the URL alongside the Trade tab's.
+  const regexPipeline = usePipeline(data);
   const [league, setLeague] = useState(DEFAULT_LEAGUE);
   const [status, setStatus] = useState<StatusOption>("securable");
   const [buyoutPrice, setBuyoutPrice] = useState<BuyoutPriceValue>({ currency: "" });
@@ -34,8 +75,8 @@ export function App() {
   }
 
   // The next two effects keep the URL and browser history in sync with app
-  // state, in both directions:
-  //  - state -> URL: whenever the query changes, push a new history entry
+  // state — the open tab and both tabs' selections — in both directions:
+  //  - state -> URL: whenever any of it changes, push a new history entry
   //    encoding it (below), so the address bar always doubles as a share
   //    link and back/forward step through the edit history.
   //  - URL -> state: on first load (a shared link) and on every back/forward
@@ -49,22 +90,31 @@ export function App() {
   useEffect(() => {
     function syncFromLocation() {
       skipNextPushRef.current = true;
-      readSharedQuery().then((shared) => {
-        if (shared) {
-          handleLoadQuery(shared);
+      readSharedState().then((shared) => {
+        setActiveTab(shared.tab);
+        if (shared.trade) {
+          handleLoadQuery(shared.trade);
         } else {
-          // Nothing (valid) in the URL — either the very first load, or the
-          // user went back past the first edit — either way, blank slate.
-          // Seller/buyout price fall back to the user's own saved defaults
-          // (see lib/defaultTradeOptions.ts) rather than the hardcoded app
-          // defaults, if they've saved one — the debounced push effect below
-          // then encodes whichever applies into the URL on its own once this
-          // settles, same as any other state change.
+          // Nothing (valid) in the URL for this tab — either the very first
+          // load, or the user went back past its first edit — either way,
+          // blank slate. Seller/buyout price fall back to the user's own
+          // saved defaults (see lib/defaultTradeOptions.ts) rather than the
+          // hardcoded app defaults, if they've saved one — the debounced
+          // push effect below then encodes whichever applies into the URL on
+          // its own once this settles, same as any other state change.
           pipeline.reset();
           pipeline.setIncludeUniqueMods(false);
           setLeague(DEFAULT_LEAGUE);
           setStatus(getDefaultStatus() ?? "securable");
           setBuyoutPrice(getDefaultBuyoutPrice() ?? { currency: "" });
+        }
+        if (shared.regex) {
+          regexPipeline.loadSteps(shared.regex.steps, {
+            enforceAffixCap: shared.regex.enforceAffixCap,
+            includeUniqueMods: shared.regex.includeUniqueMods,
+          });
+        } else {
+          regexPipeline.loadSteps([], { enforceAffixCap: true, includeUniqueMods: false });
         }
       });
     }
@@ -84,7 +134,17 @@ export function App() {
     includeUniqueMods: pipeline.includeUniqueMods,
     steps: pipeline.steps,
   };
-  const snapshotKey = JSON.stringify(snapshot);
+  const regexSnapshot: RegexSnapshot = {
+    enforceAffixCap: regexPipeline.enforceAffixCap,
+    includeUniqueMods: regexPipeline.includeUniqueMods,
+    steps: regexPipeline.steps,
+  };
+  const sharedState: SharedState = {
+    tab: activeTab,
+    trade: isBlankTradeSnapshot(snapshot) ? null : snapshot,
+    regex: isBlankRegexSnapshot(regexSnapshot) ? null : regexSnapshot,
+  };
+  const sharedStateKey = JSON.stringify(sharedState);
 
   // Debounced so rapid-fire changes (typing a min/max value, dragging a
   // stat) collapse into one history entry once things settle, rather than
@@ -95,114 +155,148 @@ export function App() {
       return;
     }
     const timeout = setTimeout(() => {
-      pushQueryToHistory(snapshot);
+      pushSharedStateToHistory(sharedState);
     }, 600);
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshotKey]);
+  }, [sharedStateKey]);
+
+  // Arrow keys move between tabs, per the WAI-ARIA tabs pattern.
+  function handleTabKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    const index = TABS.findIndex((t) => t.id === activeTab);
+    const next = TABS[(index + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
+    setActiveTab(next.id);
+    document.getElementById(`tab-${next.id}`)?.focus();
+  }
 
   return (
     <main>
       <header>
         <h1>PoE2 Better Trade Filter</h1>
-        <div className="league-select">
-          <span>League</span>
-          <SearchableCombobox
-            options={data.leagues.map((l) => ({ id: l.id, label: l.text }))}
-            selectedLabel={leagueText}
-            onSelect={setLeague}
-          />
-        </div>
-      </header>
-
-      <PipelineTrail
-        steps={pipeline.steps}
-        data={data}
-        onRemoveStep={pipeline.removeStepAt}
-        onUndoLast={pipeline.undoLast}
-        onReset={pipeline.reset}
-      />
-
-      <div className="layout">
-        <div className="layout-left">
-          {derived.chosenCategory ? (
-            <section className="category-chip">
-              <h2>Item category</h2>
-              <div className="chip-row">
-                <span className="chip">{derived.chosenCategory.text}</span>
-                <button type="button" onClick={() => pipeline.removeStepAt(categoryStepIndex)}>
-                  Change
-                </button>
-              </div>
-            </section>
-          ) : (
-            <CategoryPicker categories={derived.availableCategories} onSelect={pipeline.selectCategory} />
-          )}
-
-          {derived.chosenCategory && (
-            <ItemNamePicker
-              availableNames={derived.availableItemNames}
-              chosenName={derived.chosenItemName}
-              onSet={pipeline.setItemName}
-              onClear={pipeline.clearItemName}
-            />
-          )}
-
-          <MiscFilterPanel
-            itemFilters={data.itemFilters}
-            relevantReqFilters={derived.relevantReqFilters}
-            relevantMiscFilters={derived.relevantMiscFilters}
-            relevantEquipmentFilters={derived.relevantEquipmentFilters}
-            chosenMisc={derived.chosenMisc}
-            onAdd={pipeline.addMiscFilter}
-            onUpdate={pipeline.updateMiscFilter}
-            onRemove={pipeline.removeMiscFilter}
-          />
-
-          <SavedQueriesPanel
-            canSave={pipeline.steps.length > 0}
-            league={league}
-            status={status}
-            buyoutPrice={buyoutPrice}
-            enforceAffixCap={pipeline.enforceAffixCap}
-            includeUniqueMods={pipeline.includeUniqueMods}
-            steps={pipeline.steps}
-            onLoad={handleLoadQuery}
-          />
-        </div>
-
-        <div className="layout-right">
-          <div className="trade-link-row">
-            <TradeLinkButton
-              league={league}
-              derived={derived}
-              status={status}
-              onStatusChange={setStatus}
-              buyoutPrice={buyoutPrice}
-              onBuyoutPriceChange={setBuyoutPrice}
+        {activeTab === "trade" && (
+          <div className="league-select">
+            <span>League</span>
+            <SearchableCombobox
+              options={data.leagues.map((l) => ({ id: l.id, label: l.text }))}
+              selectedLabel={leagueText}
+              onSelect={setLeague}
             />
           </div>
+        )}
+      </header>
 
-          <StatFilterList
-            availableStats={derived.availableStats}
-            statSections={derived.statSections}
-            categories={data.categories}
-            prefixCount={derived.prefixCount}
-            suffixCount={derived.suffixCount}
-            enforceAffixCap={pipeline.enforceAffixCap}
-            onToggleAffixCap={pipeline.setEnforceAffixCap}
-            includeUniqueMods={pipeline.includeUniqueMods}
-            onToggleUniqueMods={pipeline.setIncludeUniqueMods}
-            onAdd={pipeline.addStat}
-            onRemove={pipeline.removeStat}
-            onRangeChange={pipeline.updateStatRange}
-            onAddSection={pipeline.addStatSection}
-            onUpdateSection={pipeline.updateStatSection}
-            onRemoveSection={pipeline.removeStatSection}
-            onMoveStat={pipeline.moveStatToSection}
-            onWeightChange={pipeline.updateStatWeight}
-          />
-        </div>
+      <div className="tabs" role="tablist" aria-label="Tools">
+        {TABS.map((tab) => {
+          const isActive = tab.id === activeTab;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`tab-${tab.id}`}
+              aria-selected={isActive}
+              aria-controls={isActive ? `tabpanel-${tab.id}` : undefined}
+              tabIndex={isActive ? 0 : -1}
+              className={`tab${isActive ? " tab-active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+              onKeyDown={handleTabKeyDown}
+            >
+              {tab.label}
+              {tab.badge && <span className="tab-badge">{tab.badge}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      <div role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
+        {activeTab === "regex" ? (
+          <RegexPage data={data} pipeline={regexPipeline} />
+        ) : (
+          <>
+            <PipelineTrail
+              steps={pipeline.steps}
+              data={data}
+              onRemoveStep={pipeline.removeStepAt}
+              onUndoLast={pipeline.undoLast}
+              onReset={pipeline.reset}
+            />
+
+            <div className="layout">
+              <div className="layout-left">
+                <CategoryChoice
+                  chosenCategory={derived.chosenCategory}
+                  availableCategories={derived.availableCategories}
+                  onSelect={pipeline.selectCategory}
+                  onChange={() => pipeline.removeStepAt(categoryStepIndex)}
+                />
+
+                {derived.chosenCategory && (
+                  <ItemNamePicker
+                    availableNames={derived.availableItemNames}
+                    chosenName={derived.chosenItemName}
+                    onSet={pipeline.setItemName}
+                    onClear={pipeline.clearItemName}
+                  />
+                )}
+
+                <MiscFilterPanel
+                  itemFilters={data.itemFilters}
+                  relevantReqFilters={derived.relevantReqFilters}
+                  relevantMiscFilters={derived.relevantMiscFilters}
+                  relevantEquipmentFilters={derived.relevantEquipmentFilters}
+                  chosenMisc={derived.chosenMisc}
+                  onAdd={pipeline.addMiscFilter}
+                  onUpdate={pipeline.updateMiscFilter}
+                  onRemove={pipeline.removeMiscFilter}
+                />
+
+                <SavedQueriesPanel
+                  store={tradeQueryStore}
+                  noun={{ singular: "query", plural: "queries" }}
+                  snapshot={snapshot}
+                  canSave={pipeline.steps.length > 0}
+                  describe={describeSavedQuery}
+                  onLoad={handleLoadQuery}
+                />
+              </div>
+
+              <div className="layout-right">
+                <div className="trade-link-row">
+                  <TradeLinkButton
+                    league={league}
+                    derived={derived}
+                    status={status}
+                    onStatusChange={setStatus}
+                    buyoutPrice={buyoutPrice}
+                    onBuyoutPriceChange={setBuyoutPrice}
+                  />
+                </div>
+
+                <StatFilterList
+                  availableStats={derived.availableStats}
+                  statSections={derived.statSections}
+                  categories={data.categories}
+                  prefixCount={derived.prefixCount}
+                  suffixCount={derived.suffixCount}
+                  enforceAffixCap={pipeline.enforceAffixCap}
+                  onToggleAffixCap={pipeline.setEnforceAffixCap}
+                  includeUniqueMods={pipeline.includeUniqueMods}
+                  onToggleUniqueMods={pipeline.setIncludeUniqueMods}
+                  onAdd={pipeline.addStat}
+                  onRemove={pipeline.removeStat}
+                  onRangeChange={pipeline.updateStatRange}
+                  onAddSection={pipeline.addStatSection}
+                  onUpdateSection={pipeline.updateStatSection}
+                  onRemoveSection={pipeline.removeStatSection}
+                  onMoveStat={pipeline.moveStatToSection}
+                  onWeightChange={pipeline.updateStatWeight}
+                  onToggleEnabled={pipeline.setStatEnabled}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <footer className="site-footer">

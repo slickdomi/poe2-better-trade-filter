@@ -1,30 +1,17 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from "react";
-import { STATUS_OPTIONS } from "../state/types";
-import {
-  createFolder,
-  deleteFolder,
-  deleteSavedQuery,
-  exportSavedQueriesToJson,
-  importSavedQueriesFromJson,
-  listFolders,
-  listSavedQueries,
-  moveFolderToFolder,
-  moveQueryToFolder,
-  renameFolder,
-  saveQuery,
-  type SavedQuery,
-  type SavedQueryFolder,
-} from "../lib/savedQueries";
+import type { SavedEntry, SavedQueryFolder, SavedQueryStore } from "../lib/savedQueries";
 
-interface Props {
+interface Props<S extends object> {
+  /** Which pool this panel reads and writes — each tab has its own. */
+  store: SavedQueryStore<S>;
+  /** What one entry is called in the UI, e.g. { singular: "query", plural: "queries" }. */
+  noun: { singular: string; plural: string };
+  /** The current state, saved as-is by "Save current". */
+  snapshot: S;
   canSave: boolean;
-  league: string;
-  status: SavedQuery["status"];
-  buyoutPrice: SavedQuery["buyoutPrice"];
-  enforceAffixCap: boolean;
-  includeUniqueMods: boolean;
-  steps: SavedQuery["steps"];
-  onLoad: (query: SavedQuery) => void;
+  /** The one-line summary shown under an entry's name. */
+  describe: (entry: SavedEntry<S>) => string;
+  onLoad: (entry: SavedEntry<S>) => void;
 }
 
 // Custom dataTransfer types, not "text/plain" — folders and queries need to
@@ -35,19 +22,10 @@ const FOLDER_MIME = "application/x-poe2bt-saved-folder";
 /** Sentinel for the top-level drop target — never a real folder id (those are UUIDs). */
 const ROOT_ID = "root";
 
-export function SavedQueriesPanel({
-  canSave,
-  league,
-  status,
-  buyoutPrice,
-  enforceAffixCap,
-  includeUniqueMods,
-  steps,
-  onLoad,
-}: Props) {
+export function SavedQueriesPanel<S extends object>({ store, noun, snapshot, canSave, describe, onLoad }: Props<S>) {
   const [name, setName] = useState("");
-  const [queries, setQueries] = useState(listSavedQueries);
-  const [folders, setFolders] = useState(listFolders);
+  const [queries, setQueries] = useState(store.list);
+  const [folders, setFolders] = useState(store.listFolders);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -86,20 +64,20 @@ export function SavedQueriesPanel({
   }
 
   function refresh() {
-    setQueries(listSavedQueries());
-    setFolders(listFolders());
+    setQueries(store.list());
+    setFolders(store.listFolders());
   }
 
   function handleSave() {
     const trimmed = name.trim();
     if (!trimmed) return;
-    saveQuery({ name: trimmed, league, status, buyoutPrice, enforceAffixCap, includeUniqueMods, steps });
+    store.save({ ...snapshot, name: trimmed });
     setName("");
     refresh();
   }
 
   function handleDelete(id: string) {
-    deleteSavedQuery(id);
+    store.remove(id);
     refresh();
   }
 
@@ -115,7 +93,7 @@ export function SavedQueriesPanel({
   function handleNewFolder(parentId: string | null) {
     const trimmed = window.prompt("Folder name:")?.trim();
     if (!trimmed) return;
-    createFolder(trimmed, parentId);
+    store.createFolder(trimmed, parentId);
     if (parentId) setExpanded((prev) => new Set(prev).add(parentId));
     refresh();
   }
@@ -123,23 +101,23 @@ export function SavedQueriesPanel({
   function handleRenameFolder(folder: SavedQueryFolder) {
     const trimmed = window.prompt("Rename folder:", folder.name)?.trim();
     if (!trimmed || trimmed === folder.name) return;
-    renameFolder(folder.id, trimmed);
+    store.renameFolder(folder.id, trimmed);
     refresh();
   }
 
   function handleDeleteFolder(folder: SavedQueryFolder) {
     if (!window.confirm(`Delete "${folder.name}"? Its contents move up a level rather than being deleted.`)) return;
-    deleteFolder(folder.id);
+    store.deleteFolder(folder.id);
     refresh();
   }
 
   function handleExport() {
-    const json = exportSavedQueriesToJson();
+    const json = store.exportToJson();
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `poe2-better-trade-saved-queries-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `${store.exportFilePrefix}-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -151,7 +129,7 @@ export function SavedQueriesPanel({
     setImportError(null);
     try {
       const text = await file.text();
-      importSavedQueriesFromJson(text);
+      store.importFromJson(text);
       refresh();
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Failed to import file.");
@@ -197,18 +175,18 @@ export function SavedQueriesPanel({
     if (targetFolderId) setExpanded((prev) => new Set(prev).add(targetFolderId));
     const queryId = e.dataTransfer.getData(QUERY_MIME);
     if (queryId) {
-      moveQueryToFolder(queryId, targetFolderId);
+      store.moveToFolder(queryId, targetFolderId);
       refresh();
       return;
     }
     const folderId = e.dataTransfer.getData(FOLDER_MIME);
     if (folderId) {
-      moveFolderToFolder(folderId, targetFolderId); // no-ops if this would nest a folder inside itself
+      store.moveFolderToFolder(folderId, targetFolderId); // no-ops if this would nest a folder inside itself
       refresh();
     }
   }
 
-  function renderQuery(q: SavedQuery) {
+  function renderQuery(q: SavedEntry<S>) {
     return (
       <li key={q.id} className={`saved-query-item${draggingId === q.id ? " saved-query-dragging" : ""}`}>
         <span
@@ -225,16 +203,13 @@ export function SavedQueriesPanel({
         />
         <div className="saved-query-info">
           <span className="saved-query-name">{q.name}</span>
-          <span className="saved-query-meta">
-            {q.league} · {STATUS_OPTIONS.find((o) => o.id === q.status)?.label ?? q.status} ·{" "}
-            {q.steps.length} filter{q.steps.length === 1 ? "" : "s"}
-          </span>
+          <span className="saved-query-meta">{describe(q)}</span>
         </div>
         <div className="saved-query-actions">
           <button type="button" onClick={() => onLoad(q)}>
             Load
           </button>
-          <button type="button" onClick={() => handleDelete(q.id)} title="Delete this saved query">
+          <button type="button" onClick={() => handleDelete(q.id)} title={`Delete this saved ${noun.singular}`}>
             Delete
           </button>
         </div>
@@ -299,7 +274,7 @@ export function SavedQueriesPanel({
             {childFolders.map((f) => renderFolder(f))}
             {childQueries.map(renderQuery)}
             {childFolders.length === 0 && childQueries.length === 0 && (
-              <li className="hint saved-folder-empty">Empty — drag a saved query here.</li>
+              <li className="hint saved-folder-empty">Empty — drag a saved {noun.singular} here.</li>
             )}
           </ul>
         )}
@@ -312,12 +287,12 @@ export function SavedQueriesPanel({
 
   return (
     <section className="saved-queries">
-      <h2>Saved queries</h2>
+      <h2>Saved {noun.plural}</h2>
 
       <div className="saved-queries-save-row">
         <input
           type="text"
-          placeholder="Name this query…"
+          placeholder={`Name this ${noun.singular}…`}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => {
@@ -352,7 +327,7 @@ export function SavedQueriesPanel({
       {importError && <p className="error">{importError}</p>}
 
       {queries.length === 0 && folders.length === 0 ? (
-        <p className="hint">No saved queries yet.</p>
+        <p className="hint">No saved {noun.plural} yet.</p>
       ) : (
         <>
           {/* Only rendered when there's a folder to actually escape from —

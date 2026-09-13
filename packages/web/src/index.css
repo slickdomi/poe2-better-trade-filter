@@ -93,9 +93,50 @@ header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Fixed so the header doesn't jump when the league select (Trade tab only) comes and goes. */
+  min-height: 2.25rem;
+  margin-bottom: 0.75rem;
+}
+
+/* Tabs ------------------------------------------------------------------- */
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
   margin-bottom: 1rem;
-  padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  margin-bottom: -1px; /* sit on the strip's bottom border, so the active tab can cover it */
+  padding: 0.55rem 1.1rem;
+  font-family: var(--font-heading);
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+
+.tab:hover {
+  color: var(--text);
+  border-color: transparent;
+}
+
+.tab-badge {
+  margin-left: 0.35em;
+  font-size: 0.8em;
+  color: var(--text-faint);
+}
+
+.tab-active,
+.tab-active:hover {
+  color: var(--accent-hover);
+  background: var(--bg-panel);
+  border-color: var(--border);
+  border-bottom-color: var(--bg-panel);
 }
 
 h1 {
@@ -863,7 +904,8 @@ button:disabled {
   opacity: 0.5;
 }
 
-.trade-link-button {
+.trade-link-button,
+.regex-copy-button {
   font-family: var(--font-heading);
   font-variant: small-caps;
   letter-spacing: 0.03em;
@@ -877,15 +919,72 @@ button:disabled {
   box-shadow: 0 4px 16px rgba(175, 138, 78, 0.25);
 }
 
-.trade-link-button:hover {
+.trade-link-button:hover,
+.regex-copy-button:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
 
-.trade-link-button:disabled {
+.trade-link-button:disabled,
+.regex-copy-button:disabled {
   background: var(--bg-chip);
   color: var(--text-dim);
   border-color: var(--border);
+}
+
+/* Regex generator ---------------------------------------------------------- */
+
+.regex-output textarea {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 7.5rem;
+  resize: vertical;
+  padding: 0.6rem 0.7rem;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  line-height: 1.5;
+  word-break: break-all;
+  color: inherit;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.regex-output textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.regex-output-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.regex-length {
+  flex: none;
+  min-width: 4.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.regex-length-over {
+  color: var(--danger);
+}
+
+.regex-warnings {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+.regex-warnings li + li {
+  margin-top: 0.25rem;
 }
 
 /* Category chip -------------------------------------------------------------- */
@@ -1146,6 +1245,24 @@ input[type="checkbox"] {
   display: flex;
   gap: 0.4rem;
   flex: none;
+}
+
+/* Disabled modifiers ----------------------------------------------------- */
+
+.chosen-stat-toggle {
+  flex: none;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Still listed and editable, but left out of the search — dimmed so it reads as "off" at a glance. */
+.chosen-stat-disabled .stat-text,
+.chosen-stat-disabled .chosen-stat-controls > span:not(.drag-handle) {
+  opacity: 0.45;
+}
+
+.chosen-stat-disabled .stat-text {
+  text-decoration: line-through;
 }
 
 /* Footer ----------------------------------------------------------------- */

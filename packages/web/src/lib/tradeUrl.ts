@@ -30,7 +30,13 @@ function buildStatGroups(derived: DerivedState) {
         if (s.min !== undefined) value.min = s.min;
         if (s.max !== undefined) value.max = s.max;
         if (isWeighted && s.weight !== undefined) value.weight = s.weight;
-        return { id: s.statId, ...(Object.keys(value).length > 0 ? { value } : {}) };
+        // `disabled` is the trade site's own per-filter checkbox, so a disabled
+        // modifier shows up there unticked rather than vanishing.
+        return {
+          id: s.statId,
+          ...(Object.keys(value).length > 0 ? { value } : {}),
+          ...(s.disabled ? { disabled: true } : {}),
+        };
       });
 
       const group: Record<string, unknown> = { type: section.type, filters };

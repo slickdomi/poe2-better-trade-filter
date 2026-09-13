@@ -1,4 +1,4 @@
-import { STATUS_OPTIONS, type QuerySnapshot, type Step } from "../state/types";
+import { STATUS_OPTIONS, type QuerySnapshot, type RegexSnapshot, type Step } from "../state/types";
 
 /**
  * ============================================================================
@@ -41,6 +41,12 @@ import { STATUS_OPTIONS, type QuerySnapshot, type Step } from "../state/types";
  *      the migration rather than leaving them for `isQuerySnapshotShape` to
  *      reject the whole snapshot over.
  *
+ * The Regex generator tab's `RegexSnapshot` (saved regexes, their export
+ * file, and the `?r=` share-link param) follows the exact same plan on a
+ * chain of its own — see
+ * CURRENT_REGEX_SNAPSHOT_VERSION below. It shares `Step` with QuerySnapshot,
+ * so a change to `Step` needs a migration in BOTH chains.
+ *
  * The exact same idea, applied to the *container* each of these payloads
  * lives in (e.g. "saved queries used to be a flat array"), is
  * lib/versionedStore.ts — that one versions the array/object wrapper around
@@ -71,6 +77,14 @@ export const QUERY_SNAPSHOT_MIGRATIONS: Migration[] = [
   }),
 ];
 
+/**
+ * RegexSnapshot started out at v1 — it has none of the trade-only fields
+ * QUERY_SNAPSHOT_MIGRATIONS[0] backfills — so its chain starts empty.
+ */
+export const CURRENT_REGEX_SNAPSHOT_VERSION = 1;
+
+export const REGEX_SNAPSHOT_MIGRATIONS: Migration[] = [];
+
 function isStep(value: unknown): value is Step {
   return !!value && typeof value === "object" && typeof (value as Step).kind === "string";
 }
@@ -95,6 +109,32 @@ export function isQuerySnapshotShape(value: unknown): value is QuerySnapshot {
   );
 }
 
+/** Structural check for a bare RegexSnapshot — same superset caveat as isQuerySnapshotShape. */
+export function isRegexSnapshotShape(value: unknown): value is RegexSnapshot {
+  if (!value || typeof value !== "object") return false;
+  const v = value as RegexSnapshot;
+  return (
+    typeof v.enforceAffixCap === "boolean" &&
+    typeof v.includeUniqueMods === "boolean" &&
+    Array.isArray(v.steps) &&
+    v.steps.every(isStep)
+  );
+}
+
+function migrateFields(raw: unknown, migrations: Migration[], currentVersion: number): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let data: any = raw;
+  let version = typeof data.v === "number" ? data.v : 0;
+  while (version < currentVersion) {
+    const migrate = migrations[version];
+    if (!migrate) break; // no migration registered this far — shape validation below will reject it if it's genuinely incompatible
+    data = migrate(data);
+    version++;
+  }
+  return { ...data, v: currentVersion };
+}
+
 /**
  * Walks `raw` through every migration between its own `v` (0 if absent) and
  * `CURRENT_QUERY_SNAPSHOT_VERSION`, then stamps the current version back on.
@@ -106,17 +146,12 @@ export function isQuerySnapshotShape(value: unknown): value is QuerySnapshot {
  * will reject it).
  */
 export function migrateQuerySnapshotFields(raw: unknown): unknown {
-  if (!raw || typeof raw !== "object") return raw;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let data: any = raw;
-  let version = typeof data.v === "number" ? data.v : 0;
-  while (version < CURRENT_QUERY_SNAPSHOT_VERSION) {
-    const migrate = QUERY_SNAPSHOT_MIGRATIONS[version];
-    if (!migrate) break; // no migration registered this far — shape validation below will reject it if it's genuinely incompatible
-    data = migrate(data);
-    version++;
-  }
-  return { ...data, v: CURRENT_QUERY_SNAPSHOT_VERSION };
+  return migrateFields(raw, QUERY_SNAPSHOT_MIGRATIONS, CURRENT_QUERY_SNAPSHOT_VERSION);
+}
+
+/** migrateQuerySnapshotFields' counterpart for a RegexSnapshot. */
+export function migrateRegexSnapshotFields(raw: unknown): unknown {
+  return migrateFields(raw, REGEX_SNAPSHOT_MIGRATIONS, CURRENT_REGEX_SNAPSHOT_VERSION);
 }
 
 /** Migrates then validates as a bare snapshot — what share-link decoding needs. Never throws; returns `null` for anything unmigratable or invalid. */
@@ -125,7 +160,18 @@ export function migrateQuerySnapshot(raw: unknown): QuerySnapshot | null {
   return isQuerySnapshotShape(migrated) ? migrated : null;
 }
 
+/** migrateQuerySnapshot's counterpart for a RegexSnapshot — what the `?r=` share-link param needs. */
+export function migrateRegexSnapshot(raw: unknown): RegexSnapshot | null {
+  const migrated = migrateRegexSnapshotFields(raw);
+  return isRegexSnapshotShape(migrated) ? migrated : null;
+}
+
 /** Stamps the current version onto a freshly-built snapshot at the point it's about to be serialized (saved, shared, or exported) — a snapshot built by the running app is by definition already current-shape, so this needs no migration, just the label. */
 export function withCurrentSnapshotVersion<T extends object>(snapshot: T): T & { v: number } {
   return { ...snapshot, v: CURRENT_QUERY_SNAPSHOT_VERSION };
+}
+
+/** withCurrentSnapshotVersion's counterpart for a RegexSnapshot. */
+export function withCurrentRegexSnapshotVersion<T extends object>(snapshot: T): T & { v: number } {
+  return { ...snapshot, v: CURRENT_REGEX_SNAPSHOT_VERSION };
 }

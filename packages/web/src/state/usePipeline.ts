@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import type { FiltersData, MiscFilterGroup, MiscFilterValue, StatSectionType, Step } from "./types";
 import { DEFAULT_SECTION_ID, deriveState } from "./derive";
 
+export type Pipeline = ReturnType<typeof usePipeline>;
+
 export function usePipeline(data: FiltersData) {
   const [steps, setSteps] = useState<Step[]>([]);
   const [enforceAffixCap, setEnforceAffixCap] = useState(true);
@@ -63,6 +65,13 @@ export function usePipeline(data: FiltersData) {
     setSteps((prev) => prev.map((s) => (s.kind === "stat" && s.statId === statId ? { ...s, weight } : s)));
   }
 
+  /** The stat stays in the list either way — a disabled one is just left out of the search. */
+  function setStatEnabled(statId: string, enabled: boolean) {
+    setSteps((prev) =>
+      prev.map((s) => (s.kind === "stat" && s.statId === statId ? { ...s, disabled: enabled ? undefined : true } : s)),
+    );
+  }
+
   function setItemName(name: string) {
     setSteps((prev) => [...prev.filter((s) => s.kind !== "itemName"), { kind: "itemName", name }]);
   }
@@ -120,6 +129,7 @@ export function usePipeline(data: FiltersData) {
     removeStatSection,
     moveStatToSection,
     updateStatWeight,
+    setStatEnabled,
     setItemName,
     clearItemName,
     addMiscFilter,

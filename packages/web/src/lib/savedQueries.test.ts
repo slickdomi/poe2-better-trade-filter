@@ -1,19 +1,21 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import {
+import { regexQueryStore, tradeQueryStore } from "./savedQueries";
+import type { QuerySnapshot, RegexSnapshot } from "../state/types";
+
+const {
   createFolder,
   deleteFolder,
-  deleteSavedQuery,
-  exportSavedQueriesToJson,
-  importSavedQueriesFromJson,
+  remove: deleteSavedQuery,
+  exportToJson: exportSavedQueriesToJson,
+  importFromJson: importSavedQueriesFromJson,
   listFolders,
-  listSavedQueries,
+  list: listSavedQueries,
   moveFolderToFolder,
-  moveQueryToFolder,
+  moveToFolder: moveQueryToFolder,
   renameFolder,
-  renameSavedQuery,
-  saveQuery,
-} from "./savedQueries";
-import type { QuerySnapshot } from "../state/types";
+  rename: renameSavedQuery,
+  save: saveQuery,
+} = tradeQueryStore;
 
 const BASE_SNAPSHOT: QuerySnapshot = {
   league: "Standard",
@@ -245,5 +247,63 @@ describe("legacy localStorage data (pre-versioning)", () => {
   it("drops entries that don't even look like a valid record, instead of crashing", () => {
     localStorage.setItem("poe2-better-trade:saved-queries", JSON.stringify([{ notAQuery: true }, null, 42]));
     expect(listSavedQueries()).toEqual([]);
+  });
+});
+
+describe("regex store", () => {
+  const REGEX_SNAPSHOT: RegexSnapshot = {
+    enforceAffixCap: true,
+    includeUniqueMods: false,
+    steps: [{ kind: "category", categoryId: "armour.helmet" }],
+  };
+
+  it("keeps saved regexes and their folders apart from saved trade queries", () => {
+    regexQueryStore.save({ ...REGEX_SNAPSHOT, name: "Regex" });
+    regexQueryStore.createFolder("Regex folder");
+    saveQuery({ ...BASE_SNAPSHOT, name: "Trade" });
+
+    expect(regexQueryStore.list().map((q) => q.name)).toEqual(["Regex"]);
+    expect(listSavedQueries().map((q) => q.name)).toEqual(["Trade"]);
+    expect(regexQueryStore.listFolders().map((f) => f.name)).toEqual(["Regex folder"]);
+    expect(listFolders()).toEqual([]);
+  });
+
+  it("stores only the regex snapshot's own fields, version-stamped", () => {
+    regexQueryStore.save({ ...REGEX_SNAPSHOT, name: "Lean", league: "Standard" } as never);
+    const raw = JSON.parse(localStorage.getItem("poe2-better-trade:saved-regexes")!);
+    expect(raw.data[0].v).toBe(1);
+    expect(raw.data[0]).not.toHaveProperty("league");
+  });
+
+  it("round-trips through its own export file", () => {
+    const folder = regexQueryStore.createFolder("Helmets");
+    regexQueryStore.save({ ...REGEX_SNAPSHOT, name: "Exported regex", folderId: folder.id });
+
+    const json = regexQueryStore.exportToJson();
+    localStorage.clear();
+
+    expect(regexQueryStore.importFromJson(json)).toEqual({ foldersImported: 1, queriesImported: 1 });
+    expect(regexQueryStore.list()[0]).toMatchObject({ name: "Exported regex", steps: REGEX_SNAPSHOT.steps });
+    expect(listSavedQueries()).toEqual([]);
+  });
+
+  it("refuses the other tab's export file, pointing at the right tab", () => {
+    saveQuery({ ...BASE_SNAPSHOT, name: "Trade" });
+    regexQueryStore.save({ ...REGEX_SNAPSHOT, name: "Regex" });
+    const tradeJson = exportSavedQueriesToJson();
+    const regexJson = regexQueryStore.exportToJson();
+
+    expect(() => regexQueryStore.importFromJson(tradeJson)).toThrow(/Trade tab/);
+    expect(() => importSavedQueriesFromJson(regexJson)).toThrow(/Regex generator tab/);
+  });
+
+  it("treats an export file from before regexes existed (no kind) as a trade file", () => {
+    const legacyExport = JSON.stringify({
+      version: 1,
+      folders: [],
+      queries: [{ id: "q1", name: "Old Query", league: "Standard", steps: [] }],
+    });
+    expect(() => regexQueryStore.importFromJson(legacyExport)).toThrow(/Trade tab/);
+    expect(importSavedQueriesFromJson(legacyExport)).toEqual({ foldersImported: 0, queriesImported: 1 });
   });
 });

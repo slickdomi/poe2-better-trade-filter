@@ -75,4 +75,24 @@ describe("buildTradeQueryPayload — other fields", () => {
     const payload = buildTradeQueryPayload(makeDerived({ chosenItemName: "Leaden Greathammer" }));
     expect(payload.type).toBe("Leaden Greathammer");
   });
+
+  it("sends a disabled modifier with the trade site's own `disabled` flag, and an enabled one without it", () => {
+    const base = { text: "", group: "Explicit", sectionId: "default", isUniqueOnly: false };
+    const stats = [
+      { ...base, statId: "explicit.stat_1", min: 10, disabled: false },
+      { ...base, statId: "explicit.stat_2", disabled: true },
+    ];
+    const payload = buildTradeQueryPayload(
+      makeDerived({ chosenStats: stats, statSections: [{ id: "default", type: "and", isDefault: true, stats }] }),
+    );
+    expect(payload.stats).toEqual([
+      {
+        type: "and",
+        filters: [
+          { id: "explicit.stat_1", value: { min: 10 } },
+          { id: "explicit.stat_2", disabled: true },
+        ],
+      },
+    ]);
+  });
 });
