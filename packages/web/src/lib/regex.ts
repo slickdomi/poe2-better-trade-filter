@@ -39,12 +39,44 @@ const MIN_ANCHORED_SLICE_LENGTH = 2;
 /** Longest slice tried as one half of a two-part match — past this, a single longer slice is about as short anyway. */
 const MAX_PART_LENGTH = 8;
 
+/** How a waystone prints one of its properties, for matching a requested min/max against it. */
+interface WaystoneProperty {
+  /** The whole line, `#` standing in for the value. */
+  line: string;
+  /** Text right before the value — enough of the line to tell it apart. */
+  label: string;
+  /** Pattern for what right after the value ends it. */
+  end: string;
+  /** Printed with its sign ("+18%"), so a negative value reads "-". */
+  signed: boolean;
+}
+
+/**
+ * Keyed by the trade site's Endgame filter id. Wording as a waystone shows
+ * it: "Waystone (Tier 15)", "Revives Available: 2", "Item Rarity: +12%",
+ * "Pack Size: +18%", "Monster Effectiveness: +13%", "Waystone Drop Chance:
+ * +70%". Trade's other Endgame filters (Monster Rarity, Gold, Experience)
+ * are left out until their in-game wording is confirmed.
+ */
+const WAYSTONE_PROPERTIES: Record<string, WaystoneProperty> = {
+  map_tier: { line: "waystone (tier #)", label: "tier ", end: "\\)", signed: false },
+  map_revives: { line: "revives available: #", label: "available: ", end: "$", signed: false },
+  map_iir: { line: "item rarity: +#%", label: "rarity: ", end: "%", signed: true },
+  map_packsize: { line: "pack size: +#%", label: "pack size: ", end: "%", signed: true },
+  map_magic_monsters: { line: "monster effectiveness: +#%", label: "effectiveness: ", end: "%", signed: true },
+  map_bonus: { line: "waystone drop chance: +#%", label: "drop chance: ", end: "%", signed: true },
+};
+
+/** The Endgame (`mapFilters`) filter ids an in-game search can match. */
+export const REGEX_MAP_FILTER_IDS = Object.keys(WAYSTONE_PROPERTIES);
+
 /**
  * Property lines gear shows alongside its mods ("Energy Shield: 120"). A
  * slice that also fits one of these would match every item merely *having*
  * the property, so they count as other text when picking a unique slice.
  */
 const ITEM_PROPERTY_LINES = [
+  ...Object.values(WAYSTONE_PROPERTIES).map((p) => p.line),
   ...[
     "quality",
     "physical damage",
@@ -579,6 +611,33 @@ function buildContext(derived: DerivedState, data: FiltersData): RegexContext {
   };
 }
 
+/**
+ * A waystone property's requested min/max as one term, "pack size: \+(1[89]|[2-9]\d|\d{3})%":
+ * the label pins where the value starts and `end` where it stops, so unlike
+ * a modifier's value it needs no `\b` or roll range handling.
+ */
+function propertyTerm(misc: DerivedState["chosenMisc"][number], ctx: RegexContext): string | undefined {
+  const property = WAYSTONE_PROPERTIES[misc.filterId];
+  if (!property) {
+    ctx.warnings.push(`"${misc.def.text}" has no in-game search equivalent and is left out.`);
+    return undefined;
+  }
+  if ("option" in misc.value) return undefined;
+  const { min, max } = misc.value;
+  if (min !== undefined && max !== undefined && min > max) {
+    ctx.warnings.push(`"${misc.def.text}" has a min above its max and is left out.`);
+    return undefined;
+  }
+  const number = numberRangePattern(min, max);
+  if (number === null) return undefined;
+
+  const label = escapeLiteral(property.label);
+  const value = `${number}${property.end}`;
+  if (!property.signed) return `${label}${value}`;
+  // Without a min above zero, a negative value is in range too.
+  return (min ?? 0) > 0 ? `${label}\\+${value}` : `${label}(-|\\+${value})`;
+}
+
 export interface RegexResult {
   regex: string;
   /** Parts of the selection the regex couldn't express exactly, in plain words for the user. */
@@ -589,6 +648,14 @@ export function buildRegex(derived: DerivedState, data: FiltersData): RegexResul
   const ctx = buildContext(derived, data);
   const terms: string[] = [];
   if (derived.chosenItemName) terms.push(escapeLiteral(derived.chosenItemName.toLowerCase()));
+
+  // The Regex tab only offers Endgame (waystone) properties; every other
+  // item property is trade-only.
+  for (const misc of derived.chosenMisc) {
+    if (misc.group !== "mapFilters") continue;
+    const term = propertyTerm(misc, ctx);
+    if (term) terms.push(term);
+  }
 
   for (const section of derived.statSections) {
     const stats = section.stats.filter((stat) => !stat.disabled);

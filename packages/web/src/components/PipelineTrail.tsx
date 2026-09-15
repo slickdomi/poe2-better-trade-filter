@@ -26,7 +26,13 @@ function describeStep(step: Step, data: FiltersData, statsById: Map<string, Filt
     case "itemName":
       return step.name;
     case "misc": {
-      const allDefs = [...data.itemFilters, ...data.reqFilters, ...data.miscFilters, ...data.equipmentFilters];
+      const allDefs = [
+        ...data.itemFilters,
+        ...data.reqFilters,
+        ...data.miscFilters,
+        ...data.equipmentFilters,
+        ...data.mapFilters,
+      ];
       const def = allDefs.find((d) => d.id === step.filterId);
       const label = def?.text ?? step.filterId;
       const value = step.value;

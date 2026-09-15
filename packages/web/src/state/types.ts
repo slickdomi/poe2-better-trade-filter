@@ -51,7 +51,9 @@ export interface FiltersData {
    * category's own pool, since most item types share one mod pool across
    * every base name — Tablets are the exception this exists for: each of
    * the 8 tablet types has its own disjoint pool despite sharing one trade
-   * category with no per-type sub-category to filter on.
+   * category with no per-type sub-category to filter on. Jewels too: a
+   * Time-Lost jewel rolls only "... Passive Skills in Radius also grant ..."
+   * mods, a regular jewel only their plain versions.
    */
   eligibilityByItemName: Record<string, string[]>;
   itemNamesByCategory: Record<string, string[]>;
@@ -62,9 +64,12 @@ export interface FiltersData {
   miscFilterIdsByCategory: Record<string, string[]>;
   equipmentFilters: FilterDef[];
   equipmentFilterIdsByCategory: Record<string, string[]>;
+  /** The trade site's "Endgame Filters": waystone tier and properties (Revives Available, Pack Size, ...). */
+  mapFilters: FilterDef[];
+  mapFilterIdsByCategory: Record<string, string[]>;
 }
 
-export type MiscFilterGroup = "itemFilters" | "equipmentFilters" | "reqFilters" | "miscFilters";
+export type MiscFilterGroup = "itemFilters" | "equipmentFilters" | "reqFilters" | "miscFilters" | "mapFilters";
 export type MiscFilterValue = { option: string } | { min?: number; max?: number };
 
 /**

@@ -1,10 +1,11 @@
 import { useMemo } from "react";
 import type { FiltersData, RegexSnapshot } from "../state/types";
 import type { Pipeline } from "../state/usePipeline";
-import { buildRegex } from "../lib/regex";
+import { buildRegex, REGEX_MAP_FILTER_IDS } from "../lib/regex";
 import { regexQueryStore, type SavedRegex } from "../lib/savedQueries";
 import { CategoryChoice } from "../components/CategoryChoice";
 import { ItemNamePicker } from "../components/ItemNamePicker";
+import { WaystonePropertyPanel } from "../components/MiscFilterPanel";
 import { PipelineTrail } from "../components/PipelineTrail";
 import { RegexOutput } from "../components/RegexOutput";
 import { SavedQueriesPanel } from "../components/SavedQueriesPanel";
@@ -72,6 +73,16 @@ export function RegexPage({ data, pipeline }: Props) {
               chosenName={derived.chosenItemName}
               onSet={pipeline.setItemName}
               onClear={pipeline.clearItemName}
+            />
+          )}
+
+          {derived.chosenCategory && (
+            <WaystonePropertyPanel
+              filters={derived.relevantMapFilters.filter((def) => REGEX_MAP_FILTER_IDS.includes(def.id))}
+              chosenMisc={derived.chosenMisc}
+              onAdd={pipeline.addMiscFilter}
+              onUpdate={pipeline.updateMiscFilter}
+              onRemove={pipeline.removeMiscFilter}
             />
           )}
 

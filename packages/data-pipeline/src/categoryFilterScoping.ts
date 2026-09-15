@@ -82,6 +82,15 @@ export const MISC_FILTER_IDS_NEVER_APPLICABLE = [
   "unidentified_tier",
 ];
 
+// Only relevant to Inscribed Ultimatums, which aren't in
+// CATEGORY_ITEM_CLASSES either.
+export const MAP_FILTER_IDS_NEVER_APPLICABLE = ["ultimatum_hint"];
+
+/** Waystone tier and the properties every waystone shows (Revives Available, Pack Size, ...) — no other item has them. */
+export function mapFilterIdsForCategory(allMapIds: string[], categoryId: string): string[] {
+  return categoryId === "map.waystone" ? allMapIds : [];
+}
+
 // A map's monster level — meaningless for equipment.
 export function miscFilterIdsForCategory(allMiscIds: string[], categoryId: string): string[] {
   if (categoryId === "map.waystone") return allMiscIds;

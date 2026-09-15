@@ -245,6 +245,7 @@ export function App() {
                   relevantReqFilters={derived.relevantReqFilters}
                   relevantMiscFilters={derived.relevantMiscFilters}
                   relevantEquipmentFilters={derived.relevantEquipmentFilters}
+                  relevantMapFilters={derived.relevantMapFilters}
                   chosenMisc={derived.chosenMisc}
                   onAdd={pipeline.addMiscFilter}
                   onUpdate={pipeline.updateMiscFilter}

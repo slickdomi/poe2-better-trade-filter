@@ -103,6 +103,47 @@ export function buildLocalVariantIndex(index: TradeStatIndex): Map<string, strin
   return localByGlobalId;
 }
 
+const RADIUS_JEWEL_WORDINGS = ["Small Passive Skills in Radius also grant ", "Notable Passive Skills in Radius also grant "];
+
+/**
+ * Time-Lost (radius) jewel mods don't grant their stat to you: they grant it
+ * to the passives in the jewel's radius, and trade indexes each one under
+ * its own "Small/Notable Passive Skills in Radius also grant ..." stat. RePoE
+ * doesn't carry that: `JewelRadiusMinionDamage` has the same stat id and
+ * text ("Minions deal (1-2)% increased Damage") as an ordinary jewel's
+ * minion damage mod. Joining on text alone therefore offered only the plain
+ * stats for Time-Lost jewels, which no Time-Lost jewel is indexed under.
+ *
+ * RePoE doesn't say whether a mod is the Small or the Notable version
+ * either, so both wordings are tried. Against a live pull, almost every
+ * radius jewel mod matches exactly one of them. Trade lists both for a
+ * handful of stats (maximum Life/Mana, Chaos Resistance), and the Abyss
+ * radius jewel mods for maximum Life/Mana are among them. Those are
+ * desecrated mods, though, and trade's desecrated stats only list the
+ * Notable wording of each, so `sourceBucket` (the trade bucket the mod is
+ * indexed under besides "explicit") settles it. When it doesn't, nothing is
+ * returned: picking either wording would be a guess.
+ *
+ * RePoE also keeps a "+" in front of a value mid-sentence ("Minions have
+ * +(1-2)% to Chaos Resistance"), where trade's wording has none.
+ */
+export function resolveRadiusJewelStatId(
+  index: TradeStatIndex,
+  normalizedRepoeText: string,
+  sourceBucket?: string,
+): RawStatEntry | undefined {
+  const explicit = index.get("explicit");
+  const texts = new Set([normalizedRepoeText, normalizedRepoeText.replace(/\+#/g, "#")]);
+  const keys = new Set(
+    RADIUS_JEWEL_WORDINGS.flatMap((wording) => [...texts].map((text) => `${wording}${text}`)).filter((key) =>
+      explicit?.has(key),
+    ),
+  );
+  const narrowed =
+    keys.size > 1 && sourceBucket ? [...keys].filter((key) => index.get(sourceBucket)?.has(key)) : [...keys];
+  return narrowed.length === 1 ? explicit?.get(narrowed[0]) : undefined;
+}
+
 /**
  * `preferLocal` (a RePoE `local_*` stat) sweeps every bucket for the
  * "(Local)" wording before falling back to the plain one, rather than

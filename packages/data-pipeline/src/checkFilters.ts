@@ -133,6 +133,34 @@ const checks: Record<string, Check> = {
     return failures;
   },
 
+  // Regression guard for Time-Lost (radius) jewels (see
+  // resolveRadiusJewelStatId): RePoE gives their mods the plain wording, so a
+  // text-only join offered "Minions deal #% increased Damage", which trade
+  // never indexes a Time-Lost jewel under, and not "Small Passive Skills in
+  // Radius also grant Minions deal #% increased Damage", which it does. Both
+  // share the "Jewel" category, so the per-base-name pools must tell them apart.
+  "Time-Lost jewels offer the radius version of a mod, regular jewels the plain one"({ data }) {
+    const explicitStat = (text: string) => data.stats.find((s) => s.text === text && s.type === "explicit");
+    const radius = explicitStat("Small Passive Skills in Radius also grant Minions deal #% increased Damage");
+    const plain = explicitStat("Minions deal #% increased Damage");
+    if (!radius || !plain) return [`could not find both "Minions deal #% increased Damage" variants in stats`];
+
+    const failures: string[] = [];
+    if (!data.eligibility.jewel?.includes(radius.id)) {
+      failures.push(`"${radius.id}" (radius) missing from eligibility["jewel"]`);
+    }
+    const expectations: [base: string, offered: typeof radius, notOffered: typeof radius][] = [
+      ["Time-Lost Sapphire", radius, plain],
+      ["Sapphire", plain, radius],
+    ];
+    for (const [base, offered, notOffered] of expectations) {
+      const ids = data.eligibilityByItemName[base] ?? [];
+      if (!ids.includes(offered.id)) failures.push(`"${offered.text}" missing from eligibilityByItemName["${base}"]`);
+      if (ids.includes(notOffered.id)) failures.push(`"${notOffered.text}" wrongly offered on "${base}"`);
+    }
+    return failures;
+  },
+
   // Regression guard for the fix that filters itemNamesByCategory against the
   // live trade catalog: RePoE marks 200+ base items "released" (dev-only
   // "[DNT]" placeholders, retired bases, etc.) that were never actually

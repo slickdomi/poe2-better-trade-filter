@@ -13,6 +13,7 @@ function makeDerived(overrides: Partial<DerivedState> = {}): DerivedState {
     relevantReqFilters: [],
     relevantEquipmentFilters: [],
     relevantMiscFilters: [],
+    relevantMapFilters: [],
     chosenMisc: [],
     prefixCount: 0,
     suffixCount: 0,
@@ -94,5 +95,21 @@ describe("buildTradeQueryPayload — other fields", () => {
         ],
       },
     ]);
+  });
+
+  it("sends a waystone property under map_filters", () => {
+    const payload = buildTradeQueryPayload(
+      makeDerived({
+        chosenMisc: [
+          {
+            group: "mapFilters",
+            filterId: "map_packsize",
+            def: { id: "map_packsize", text: "Waystone Packsize", minMax: true },
+            value: { min: 15 },
+          },
+        ],
+      }),
+    );
+    expect(payload.filters).toEqual({ map_filters: { filters: { map_packsize: { min: 15 } } } });
   });
 });

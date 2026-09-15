@@ -78,6 +78,7 @@ export interface DerivedState {
   relevantReqFilters: FilterDef[];
   relevantEquipmentFilters: FilterDef[];
   relevantMiscFilters: FilterDef[];
+  relevantMapFilters: FilterDef[];
   chosenMisc: DerivedMiscFilter[];
   prefixCount: number;
   suffixCount: number;
@@ -219,7 +220,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
 
   /**
    * Most categories' base items all share one mod pool, so this is just the
-   * category's own list. A handful (currently only Tablets) actually cover
+   * category's own list. A handful (currently Tablets and Jewels) actually cover
    * several disjoint pools under one trade category with no per-type
    * sub-category to filter on — e.g. Breach and Ritual Tablets share the
    * "Tablet" category but can't roll each other's mods. For those, narrow
@@ -277,9 +278,16 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
     compatibleCategories,
   );
   const relevantMiscFilters = narrowFilters(data.miscFilters, data.miscFilterIdsByCategory, compatibleCategories);
+  const relevantMapFilters = narrowFilters(data.mapFilters, data.mapFilterIdsByCategory, compatibleCategories);
 
   const miscDefsById = new Map<string, FilterDef>();
-  for (const def of [...data.itemFilters, ...data.reqFilters, ...data.miscFilters, ...data.equipmentFilters]) {
+  for (const def of [
+    ...data.itemFilters,
+    ...data.reqFilters,
+    ...data.miscFilters,
+    ...data.equipmentFilters,
+    ...data.mapFilters,
+  ]) {
     miscDefsById.set(def.id, def);
   }
   const chosenMisc: DerivedMiscFilter[] = steps
@@ -298,6 +306,7 @@ export function deriveState(steps: Step[], data: FiltersData, options: DeriveOpt
     relevantReqFilters,
     relevantEquipmentFilters,
     relevantMiscFilters,
+    relevantMapFilters,
     chosenMisc,
     prefixCount,
     suffixCount,

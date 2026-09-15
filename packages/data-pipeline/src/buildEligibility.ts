@@ -86,6 +86,17 @@ export function residualEligibleModIdsForBase(base: RepoeBaseItem, residualMods:
     .map(([id]) => id);
 }
 
+/**
+ * Whether a mod can only ever spawn on a Time-Lost (radius) jewel: every tag
+ * it spawns on with a positive weight is one of RePoE's radius jewel tags
+ * (`radius_jewel`, `str_radius_jewel`, ...), which no other base carries.
+ * See `resolveRadiusJewelStatId` for why these need their own matching.
+ */
+export function isRadiusJewelOnlyMod(mod: RepoeMod): boolean {
+  const spawnTags = mod.spawn_weights.filter((sw) => sw.weight > 0).map((sw) => sw.tag);
+  return spawnTags.length > 0 && spawnTags.every((tag) => tag.endsWith("radius_jewel"));
+}
+
 /** Mods reachable via `tagKeyToModIds` at all (any base, any tag combo) — used to find what's left over for `residualEligibleModIds` to pick up. */
 export function collectCoveredModIds(tagKeyToModIds: Map<string, string[]>): Set<string> {
   const covered = new Set<string>();

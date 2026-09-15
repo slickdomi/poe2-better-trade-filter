@@ -7,6 +7,7 @@ const TRADE_GROUP_KEY: Record<MiscFilterGroup, string> = {
   equipmentFilters: "equipment_filters",
   reqFilters: "req_filters",
   miscFilters: "misc_filters",
+  mapFilters: "map_filters",
 };
 
 /**

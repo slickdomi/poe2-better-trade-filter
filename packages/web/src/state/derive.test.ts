@@ -57,6 +57,8 @@ function makeFiltersData(): FiltersData {
     miscFilterIdsByCategory: {},
     equipmentFilters: [],
     equipmentFilterIdsByCategory: {},
+    mapFilters: [],
+    mapFilterIdsByCategory: {},
   };
 }
 

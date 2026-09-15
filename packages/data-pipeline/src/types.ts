@@ -106,4 +106,7 @@ export interface FiltersOutput {
   miscFilterIdsByCategory: Record<string, string[]>;
   equipmentFilters: FilterDef[];
   equipmentFilterIdsByCategory: Record<string, string[]>;
+  /** Trade's "Endgame Filters" (waystone tier and properties), minus MAP_FILTER_IDS_NEVER_APPLICABLE. */
+  mapFilters: FilterDef[];
+  mapFilterIdsByCategory: Record<string, string[]>;
 }

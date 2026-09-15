@@ -7,6 +7,7 @@ import {
   isLocalRepoeStatId,
   normalizeRepoeText,
   normalizeTradeText,
+  resolveRadiusJewelStatId,
   resolveTradeStatId,
 } from "./matchStatIds.js";
 import {
@@ -14,6 +15,7 @@ import {
   collectCoveredModIds,
   eligibleModIdsForItemClasses,
   flattenModsByBase,
+  isRadiusJewelOnlyMod,
   residualEligibleModIds,
   residualEligibleModIdsForBase,
 } from "./buildEligibility.js";
@@ -24,6 +26,8 @@ import { loadPoe2dbGenesisTreeStatIds } from "./poe2db/loadPoe2dbEligibility.js"
 import { loadPoe2dbUniqueStatIds } from "./poe2db/loadPoe2dbUniqueEligibility.js";
 import {
   equipmentFilterIdsForCategory,
+  MAP_FILTER_IDS_NEVER_APPLICABLE,
+  mapFilterIdsForCategory,
   MISC_FILTER_IDS_NEVER_APPLICABLE,
   miscFilterIdsForCategory,
   reqFilterIdsForCategory,
@@ -287,7 +291,17 @@ async function main() {
       const isImplicit = mod.generation_type === "implicit";
       const bucketOrder = isImplicit ? ["implicit", "explicit"] : ["explicit", "implicit"];
       const normalized = normalizeRepoeText(mod.text, mod.stats[0].min, mod.stats[0].max);
-      const resolved = resolveTradeStatId(statIndex, bucketOrder, normalized, isLocalRepoeStatId(mod.stats[0].id));
+      // A Time-Lost jewel mod falls back to plain text matching only when its
+      // own stat already is a radius effect ("local_jewel_*", e.g. "#%
+      // increased Effect of Small Passive Skills in Radius"). Any other one
+      // landing on the plain stat is the mismatch resolveRadiusJewelStatId
+      // exists to avoid, so it stays unmatched instead.
+      const isRadiusJewelMod = isRadiusJewelOnlyMod(mod);
+      const resolved = isRadiusJewelMod
+        ? (resolveRadiusJewelStatId(statIndex, normalized, mod.domain === "desecrated" ? "desecrated" : undefined) ??
+          (mod.stats[0].id.startsWith("local_jewel_") ? resolveTradeStatId(statIndex, bucketOrder, normalized) : undefined))
+        : resolveTradeStatId(statIndex, bucketOrder, normalized, isLocalRepoeStatId(mod.stats[0].id));
+      if (isRadiusJewelMod && !resolved) console.warn(`radius jewel mod "${modId}" matched no trade stat: ${normalized}`);
       if (resolved) {
         (isUnique ? uniqueStatIds : statIds).add(resolved.id);
         usedStatIds.add(resolved.id);
@@ -376,14 +390,16 @@ async function main() {
   // pool) — but rolling that out everywhere would ~4x this file's size for
   // hundreds of base names most users will never need narrowed, and is a
   // much bigger, unvetted change than what was actually asked for. Tablets
-  // are the one case this is worth it for: each of the 8 tablet types
+  // and jewels are the cases this is worth it for. Each of the 8 tablet types
   // (Abyss, Breach, Ritual, ...) has its own disjoint mod pool despite
   // sharing one trade category ("Tablet") with no per-type sub-category to
   // filter on — the app uses this to narrow "other available modifiers"
   // down to just Breach-compatible ones once a Breach-only modifier (or the
   // "Breach Tablet" base type) is chosen, without needing a real trade-API
-  // category for it.
-  const ITEM_NAME_ELIGIBILITY_CATEGORIES = ["map.tablet"];
+  // category for it. Jewels are the same story: a Time-Lost jewel only rolls
+  // "... Passive Skills in Radius also grant ..." mods and a regular jewel
+  // only their plain versions, yet both share the one "Jewel" category.
+  const ITEM_NAME_ELIGIBILITY_CATEGORIES = ["map.tablet", "jewel"];
   const eligibilityByItemName: Record<string, string[]> = {};
   for (const [categoryId, repoeClasses] of Object.entries(CATEGORY_ITEM_CLASSES)) {
     if (!ITEM_NAME_ELIGIBILITY_CATEGORIES.includes(categoryId)) continue;
@@ -538,11 +554,17 @@ async function main() {
     (f) => !MISC_FILTER_IDS_NEVER_APPLICABLE.includes(f.id),
   );
   const equipmentFilters = buildPassthroughFilters(tradeFilters.result, "equipment_filters");
+  const mapFilters = buildPassthroughFilters(tradeFilters.result, "map_filters").filter(
+    (f) => !MAP_FILTER_IDS_NEVER_APPLICABLE.includes(f.id),
+  );
 
   const miscFilterIds = miscFilters.map((f) => f.id);
+  const mapFilterIds = mapFilters.map((f) => f.id);
   const miscFilterIdsByCategory: Record<string, string[]> = {};
+  const mapFilterIdsByCategory: Record<string, string[]> = {};
   for (const categoryId of Object.keys(CATEGORY_ITEM_CLASSES)) {
     miscFilterIdsByCategory[categoryId] = miscFilterIdsForCategory(miscFilterIds, categoryId);
+    mapFilterIdsByCategory[categoryId] = mapFilterIdsForCategory(mapFilterIds, categoryId);
   }
 
   const output: FiltersOutput = {
@@ -561,6 +583,8 @@ async function main() {
     miscFilterIdsByCategory,
     equipmentFilters,
     equipmentFilterIdsByCategory,
+    mapFilters,
+    mapFilterIdsByCategory,
   };
 
   await mkdir(path.dirname(OUTPUT_PATH), { recursive: true });

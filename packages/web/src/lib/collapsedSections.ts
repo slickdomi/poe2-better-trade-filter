@@ -1,11 +1,11 @@
 import { readVersionedStore, writeVersionedStore, type VersionedStoreSpec } from "./versionedStore";
 
 /** Which collapsible sections of the misc-filter panel remember their open/closed state across reloads. */
-export type SectionId = "item" | "requirements" | "equipment" | "more";
+export type SectionId = "item" | "requirements" | "equipment" | "waystone" | "more";
 
 type SectionMap = Partial<Record<SectionId, boolean>>;
 
-const SECTION_IDS: SectionId[] = ["item", "requirements", "equipment", "more"];
+const SECTION_IDS: SectionId[] = ["item", "requirements", "equipment", "waystone", "more"];
 
 function isSectionMap(value: unknown): value is SectionMap {
   return !!value && typeof value === "object";

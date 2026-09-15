@@ -142,6 +142,8 @@ function makeFiltersData(stats: TradeStatEntry[]): FiltersData {
     miscFilterIdsByCategory: {},
     equipmentFilters: [],
     equipmentFilterIdsByCategory: {},
+    mapFilters: [],
+    mapFilterIdsByCategory: {},
   };
 }
 
@@ -382,5 +384,78 @@ describe("buildRegex", () => {
     const { regex, warnings } = regexFor({ kind: "stat", statId: "thorns", min: 5 });
     expect(searchMatches(regex, ["Adds 1(1-2) to 2(2-3) Physical Thorns damage"])).toBe(true);
     expect(warnings).toEqual([expect.stringMatching(/more than one value/)]);
+  });
+});
+
+describe("buildRegex — waystone properties", () => {
+  const waystoneData: FiltersData = {
+    ...makeFiltersData([...STATS, stat("pack_size_mod", "#% increased Pack Size in Map", [[10, 20]])]),
+    mapFilters: ["map_tier", "map_revives", "map_iir", "map_packsize", "map_magic_monsters", "map_bonus", "map_gold"].map(
+      (id) => ({ id, text: id, minMax: true as const }),
+    ),
+  };
+  /** As a real waystone shows them in game. */
+  const WAYSTONE = [
+    "Twisted Crosscut",
+    "Waystone (Tier 15)",
+    "Revives Available: 2",
+    "Item Rarity: +12%",
+    "Pack Size: +18%",
+    "Monster Effectiveness: +13%",
+    "Waystone Drop Chance: +70%",
+  ];
+
+  function propertyRegex(filterId: string, value: { min?: number; max?: number }) {
+    return regexIn(waystoneData, { kind: "misc", group: "mapFilters", filterId, value });
+  }
+
+  function matches(filterId: string, value: { min?: number; max?: number }, lines = WAYSTONE) {
+    const { regex, warnings } = propertyRegex(filterId, value);
+    expect(warnings).toEqual([]);
+    return searchMatches(regex, lines);
+  }
+
+  it("matches a min and max on each property", () => {
+    expect(matches("map_tier", { min: 15 })).toBe(true);
+    expect(matches("map_tier", { min: 16 })).toBe(false);
+    expect(matches("map_revives", { min: 2 })).toBe(true);
+    expect(matches("map_revives", { max: 1 })).toBe(false);
+    expect(matches("map_iir", { min: 10, max: 12 })).toBe(true);
+    expect(matches("map_iir", { max: 11 })).toBe(false);
+    expect(matches("map_packsize", { min: 18 })).toBe(true);
+    expect(matches("map_packsize", { min: 19 })).toBe(false);
+    expect(matches("map_magic_monsters", { min: 13 })).toBe(true);
+    expect(matches("map_magic_monsters", { min: 14 })).toBe(false);
+    expect(matches("map_bonus", { min: 70 })).toBe(true);
+    expect(matches("map_bonus", { min: 71 })).toBe(false);
+  });
+
+  it("reads values of any length whole", () => {
+    expect(matches("map_bonus", { min: 71 }, ["Waystone Drop Chance: +120%"])).toBe(true);
+    expect(matches("map_tier", { max: 9 }, ["Waystone (Tier 15)"])).toBe(false);
+    expect(matches("map_tier", { max: 9 }, ["Waystone (Tier 5)"])).toBe(true);
+    expect(matches("map_revives", { max: 1 }, ["Revives Available: 10"])).toBe(false);
+  });
+
+  it("lets a negative value through when there's no min", () => {
+    expect(matches("map_iir", { max: 11 }, ["Item Rarity: -5%"])).toBe(true);
+    expect(matches("map_iir", { min: 1 }, ["Item Rarity: -5%"])).toBe(false);
+  });
+
+  it("never reads one property's value for another's", () => {
+    expect(matches("map_packsize", { min: 20 }, ["Pack Size: +18%", "Monster Effectiveness: +25%"])).toBe(false);
+  });
+
+  it("keeps a modifier's match off the property lines", () => {
+    const { regex } = regexIn(waystoneData, { kind: "stat", statId: "pack_size_mod" });
+    expect(searchMatches(regex, WAYSTONE)).toBe(false);
+    expect(searchMatches(regex, [...WAYSTONE, "15(10-20)% increased Pack Size in Map"])).toBe(true);
+  });
+
+  it("leaves out an Endgame filter with no known in-game wording, with a warning", () => {
+    expect(propertyRegex("map_gold", { min: 5 })).toEqual({
+      regex: "",
+      warnings: [expect.stringMatching(/no in-game search equivalent/)],
+    });
   });
 });

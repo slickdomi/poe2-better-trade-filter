@@ -132,10 +132,28 @@ interface Props {
   relevantReqFilters: FilterDef[];
   relevantMiscFilters: FilterDef[];
   relevantEquipmentFilters: FilterDef[];
+  relevantMapFilters: FilterDef[];
   chosenMisc: DerivedMiscFilter[];
   onAdd: FieldProps["onAdd"];
   onUpdate: FieldProps["onUpdate"];
   onRemove: FieldProps["onRemove"];
+}
+
+type WaystonePropertyPanelProps = Pick<Props, "chosenMisc" | "onAdd" | "onUpdate" | "onRemove"> & {
+  filters: FilterDef[];
+};
+
+/** The Regex tab's counterpart to the Trade tab's "Waystone" section: just the properties an in-game search can match. */
+export function WaystonePropertyPanel({ filters, chosenMisc, onAdd, onUpdate, onRemove }: WaystonePropertyPanelProps) {
+  if (filters.length === 0) return null;
+  return (
+    <section>
+      <h2>Waystone properties</h2>
+      <div className="misc-grid">
+        {filters.map((def) => renderField(def, "mapFilters", chosenMisc, onAdd, onUpdate, onRemove))}
+      </div>
+    </section>
+  );
 }
 
 export function MiscFilterPanel({
@@ -143,6 +161,7 @@ export function MiscFilterPanel({
   relevantReqFilters,
   relevantMiscFilters,
   relevantEquipmentFilters,
+  relevantMapFilters,
   chosenMisc,
   onAdd,
   onUpdate,
@@ -166,6 +185,12 @@ export function MiscFilterPanel({
           {relevantEquipmentFilters.map((def) =>
             renderField(def, "equipmentFilters", chosenMisc, onAdd, onUpdate, onRemove),
           )}
+        </CollapsibleSection>
+      )}
+
+      {relevantMapFilters.length > 0 && (
+        <CollapsibleSection id="waystone" title="Waystone (tier, revives, pack size, …)" defaultOpen={false}>
+          {relevantMapFilters.map((def) => renderField(def, "mapFilters", chosenMisc, onAdd, onUpdate, onRemove))}
         </CollapsibleSection>
       )}
 
